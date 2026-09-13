@@ -27,11 +27,8 @@ jobs:
         with:
           version: 9
 
-      - name: 删除损坏的 lockfile
-        run: rm -f pnpm-lock.yaml
-
       - name: 安装前端依赖
-        run: pnpm install
+        run: pnpm install --no-lockfile
 
       - name: 构建网页（生成 dist/）
         run: pnpm build
