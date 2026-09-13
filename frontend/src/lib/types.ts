@@ -22,6 +22,8 @@ export interface AppSettings {
 export interface Profile {
   nickname: string;
   avatar: string; // emoji or color
+  avatarImg?: string; // 上传的头像图片 dataURL
+  photos?: string[]; // 个人相册（多张）
   signature: string;
   joinedDate: number;
 }
@@ -143,7 +145,8 @@ export interface Star extends BaseEntity {
   company: string;
   birthday: ISODate;
   debutDate: ISODate;
-  color: string; // 应援色
+  color: string; // 应援色（主色）
+  color2?: string; // 应援色第二色（双拼，可选）
   startDate: ISODate;
   reason: string;
   status: StarStatus;
@@ -364,7 +367,9 @@ export type MerchStatus =
 export interface Merch extends BaseEntity {
   name: string;
   cover: string;
-  coverImg?: string;
+  coverImg?: string; // 主图（取 images[0] 或单独上传）
+  images?: string[]; // 多张实物照片
+  category?: 'game' | 'star' | 'other'; // 分类：游戏周边/追星周边/其他
   ip: string;
   character: string;
   type: string;

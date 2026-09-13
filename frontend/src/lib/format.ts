@@ -94,6 +94,9 @@ export const NOTE_TYPE: Record<string, string> = {
 export const MERCH_STATUS: Record<string, string> = {
   own: '拥有', dup: '重复', wish: '心愿', sold: '已出', lent: '出借', lost: '丢失', damaged: '损坏',
 };
+export const MERCH_CATEGORY: Record<string, string> = {
+  game: '游戏周边', star: '追星周边', other: '其他',
+};
 export const ORDER_STATUS: Record<string, string> = {
   unpaid: '待付款', paid: '已付款', deposit: '待补款', unshipped: '待发货',
   shipped: '已发货', arrived: '已到货', cancel: '已取消', refund: '退款',

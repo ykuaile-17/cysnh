@@ -1,6 +1,6 @@
 {
   "name": "次元收纳盒",
-  "app_slug": "ciyuan-storage",
-  "version_description": "新增PWA可安装与离线支持",
-  "preview_type": "pc"
+  "app_slug": "ciyuan-storage-box",
+  "version_description": "Add photo upload OCR link parse accounts photocards history",
+  "preview_type": "mobile"
 }

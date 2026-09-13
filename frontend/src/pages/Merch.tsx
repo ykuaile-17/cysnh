@@ -5,11 +5,11 @@ import { Plus, Search as SearchIcon, Trash2, Pencil } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
 import type { Merch } from '@/lib/types';
 import { logHistory } from '@/lib/history';
-import { MERCH_STATUS, fmtMoney } from '@/lib/format';
+import { MERCH_STATUS, MERCH_CATEGORY, fmtMoney } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, MultiImageField } from '@/components/form';
 import { toast } from 'sonner';
 
 const STATUS_OPTS = Object.entries(MERCH_STATUS).map(([value, label]) => ({ value, label }));
@@ -18,20 +18,22 @@ function MerchEditor({ merch, open, onOpenChange }: { merch: Merch | null; open:
   const [d, setD] = useState<Partial<Merch>>({});
   useEffect(() => {
     if (open) setD(merch ? { ...merch } : {
-      name: '', cover: '🎎', ip: '', character: '', type: '手办', pattern: '', version: '', official: 'official',
+      name: '', cover: '🎎', ip: '', character: '', type: '手办', category: 'other', pattern: '', version: '', official: 'official',
       condition: '全新', qty: 1, unitPrice: 0, totalPrice: 0, acquireDate: new Date().toISOString().slice(0, 10),
-      platform: '', shop: '', orderNo: '', logistics: '', status: 'own', location: '', tags: [], note: '',
+      platform: '', shop: '', orderNo: '', logistics: '', status: 'own', location: '', tags: [], note: '', images: [],
     });
   }, [open, merch]);
   const save = async () => {
     if (!d.name?.trim()) { toast.error('请填写名称'); return; }
     const total = (d.totalPrice ?? 0) || (d.qty || 1) * (d.unitPrice ?? 0);
+    const images = d.images && d.images.length ? d.images : [];
     const now = Date.now();
-    if (merch) { const p = { ...d, coverImg: d.coverImg, totalPrice: total, updatedAt: now }; await db.merch.update(merch.id, p); logHistory('merch', merch.id, d.name!, 'update', merch, p); }
+    const coverImg = images[0] || d.coverImg;
+    if (merch) { const p = { ...d, images, coverImg, totalPrice: total, updatedAt: now }; await db.merch.update(merch.id, p); logHistory('merch', merch.id, d.name!, 'update', merch, p); }
     else {
       const newId = uid();
       const p = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
-        name: d.name!, cover: d.cover || '🎎', coverImg: d.coverImg, ip: d.ip || '', character: d.character || '', type: d.type || '手办',
+        name: d.name!, cover: d.cover || '🎎', coverImg, images, category: (d.category as any) || 'other', ip: d.ip || '', character: d.character || '', type: d.type || '手办',
         pattern: d.pattern || '', version: d.version || '', official: (d.official as any) || 'official', condition: d.condition || '全新',
         qty: d.qty || 1, unitPrice: d.unitPrice ?? 0, totalPrice: total, acquireDate: d.acquireDate || '', platform: d.platform || '',
         shop: d.shop || '', orderNo: d.orderNo || '', logistics: d.logistics || '', status: (d.status as any) || 'own', location: d.location || '', tags: d.tags || [], note: d.note || '' };
@@ -45,7 +47,11 @@ function MerchEditor({ merch, open, onOpenChange }: { merch: Merch | null; open:
         <Field label="实物图"><Input value={d.cover || ''} onChange={e => setD({ ...d, cover: e.target.value })} className="w-16 text-center text-xl" maxLength={4} /></Field>
         <div className="flex-1"><TextInput label="名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} /></div>
       </div>
-      <ImageField label="实物照片（可选）" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
+      <MultiImageField label="实物照片（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} max={9} />
+      <div className="grid grid-cols-2 gap-3">
+        <SelectField label="分类" value={d.category || 'other'} onChange={v => setD({ ...d, category: v as any })} options={[{ value: 'game', label: '游戏周边' }, { value: 'star', label: '追星周边' }, { value: 'other', label: '其他' }]} />
+        <SelectField label="官方/同人" value={d.official || 'official'} onChange={v => setD({ ...d, official: v as any })} options={[{ value: 'official', label: '官方' }, { value: 'doujin', label: '同人' }]} />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <TextInput label="IP/作品" value={d.ip || ''} onChange={v => setD({ ...d, ip: v })} />
         <TextInput label="角色/CP" value={d.character || ''} onChange={v => setD({ ...d, character: v })} />
@@ -76,6 +82,7 @@ export default function Merch() {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
+  const [cat, setCat] = useState('all');
 
   const merch = useLiveQuery(() => db.merch.filter(m => !m.deletedAt).toArray(), [], []) || [];
 
@@ -90,6 +97,7 @@ export default function Merch() {
 
   const filtered = merch
     .filter(g => filter === 'all' || g.status === filter)
+    .filter(g => cat === 'all' || (g.category || 'other') === cat)
     .filter(g => !q || g.name.includes(q) || (g.ip || '').includes(q) || (g.character || '').includes(q) || (g.note || '').includes(q) || (g.orderNo || '').includes(q));
 
   return (
@@ -103,6 +111,12 @@ export default function Merch() {
         <FloatAdd onClick={() => { setEditing(null); setOpen(true); }} label="添加" />
       </div>
       <div className="flex gap-1.5 overflow-x-auto px-3 py-2 text-xs">
+        {[{ v: 'all', l: '全部' }, { v: 'game', l: '游戏周边' }, { v: 'star', l: '追星周边' }, { v: 'other', l: '其他' }].map(f => (
+          <button key={f.v} onClick={() => setCat(f.v)}
+            className={`shrink-0 rounded-full px-3 py-1 ${cat === f.v ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{f.l}</button>
+        ))}
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto px-3 pb-1 text-xs">
         {[{ v: 'all', l: '全部' }, { v: 'own', l: '拥有' }, { v: 'dup', l: '重复' }, { v: 'wish', l: '心愿' }, { v: 'sold', l: '已出' }].map(f => (
           <button key={f.v} onClick={() => setFilter(f.v)}
             className={`shrink-0 rounded-full px-3 py-1 ${filter === f.v ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{f.l}</button>
@@ -114,11 +128,18 @@ export default function Merch() {
           {filtered.map(m => (
             <div key={m.id} onClick={() => navigate(`/merch/${m.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
-              {m.coverImg ? <img src={m.coverImg} className="size-9 rounded-lg object-cover" alt="" /> : <span className="text-3xl">{m.cover || '🎎'}</span>}
+              {(m.images && m.images[0]) || m.coverImg ? (
+                <img src={(m.images && m.images[0]) || m.coverImg} className="h-24 w-full rounded-lg object-cover" alt="" />
+              ) : (
+                <span className="text-3xl">{m.cover || '🎎'}</span>
+              )}
               <p className="truncate font-medium">{m.name}</p>
               <p className="truncate text-xs text-muted-foreground">{m.ip}{m.character ? ' · ' + m.character : ''}</p>
               <div className="flex items-center justify-between">
-                <Pill>{MERCH_STATUS[m.status]}</Pill>
+                <div className="flex gap-1">
+                  <Pill>{MERCH_STATUS[m.status]}</Pill>
+                  {m.category && m.category !== 'other' && <Pill color="#7c5cff">{MERCH_CATEGORY[m.category]}</Pill>}
+                </div>
                 <span className="text-xs text-destructive">{fmtMoney(m.totalPrice)}</span>
               </div>
               <div className="flex gap-1" onClick={e => e.stopPropagation()}>

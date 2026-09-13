@@ -20,7 +20,7 @@ function StarEditor({ star, open, onOpenChange }: { star: Star | null; open: boo
   useEffect(() => {
     if (open) setD(star ? { ...star } : {
       name: '', alias: '', cover: '⭐', type: 'solo', group: '', company: '', birthday: '', debutDate: '',
-      color: '#ff7eb6', startDate: '', reason: '', status: 'active', level: '', tags: [], note: '',
+      color: '#ff7eb6', color2: '', startDate: '', reason: '', status: 'active', level: '', tags: [], note: '',
     });
   }, [open, star]);
   const save = async () => {
@@ -31,7 +31,7 @@ function StarEditor({ star, open, onOpenChange }: { star: Star | null; open: boo
       const newId = uid();
       const p = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
         name: d.name!, alias: d.alias || '', cover: d.cover || '⭐', coverImg: d.coverImg, type: (d.type as any) || 'solo', group: d.group || '',
-        company: d.company || '', birthday: d.birthday || '', debutDate: d.debutDate || '', color: d.color || '#ff7eb6',
+        company: d.company || '', birthday: d.birthday || '', debutDate: d.debutDate || '', color: d.color || '#ff7eb6', color2: d.color2 || '',
         startDate: d.startDate || '', reason: d.reason || '', status: (d.status as any) || 'active', level: d.level || '', tags: d.tags || [], note: d.note || '' };
       await db.stars.add(p); logHistory('stars', newId, d.name!, 'create', null, p);
     }
@@ -56,7 +56,16 @@ function StarEditor({ star, open, onOpenChange }: { star: Star | null; open: boo
         <DateInput label="生日" value={d.birthday || ''} onChange={v => setD({ ...d, birthday: v })} />
         <DateInput label="出道日" value={d.debutDate || ''} onChange={v => setD({ ...d, debutDate: v })} />
       </div>
-      <Field label="应援色"><Input type="color" value={d.color || '#ff7eb6'} onChange={e => setD({ ...d, color: e.target.value })} className="h-9 w-20 p-1" /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="应援色（主）"><Input type="color" value={d.color || '#ff7eb6'} onChange={e => setD({ ...d, color: e.target.value })} className="h-9 w-20 p-1" /></Field>
+        <Field label="应援色（双拼）"><Input type="color" value={d.color2 || '#ff7eb6'} onChange={e => setD({ ...d, color2: e.target.value })} className="h-9 w-20 p-1" /></Field>
+      </div>
+      {d.color2 ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="h-4 w-12 rounded" style={{ background: `linear-gradient(135deg, ${d.color}, ${d.color2})` }} />
+          双拼应援色预览
+        </div>
+      ) : null}
       <TextInput label="本命程度" value={d.level || ''} onChange={v => setD({ ...d, level: v })} placeholder="如：本命" />
       <TextInput label="入坑契机" value={d.reason || ''} onChange={v => setD({ ...d, reason: v })} />
       <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
@@ -116,7 +125,13 @@ export default function Stars() {
           {filtered.map(s => (
             <div key={s.id} onClick={() => navigate(`/stars/${s.id}`)}
               className="flex cursor-pointer items-center gap-3 rounded-2xl border bg-card p-3 active:scale-[0.99]">
-              {s.coverImg ? <img src={s.coverImg} className="size-9 rounded-full object-cover" alt="" /> : <span className="text-3xl" style={{ color: s.color }}>{s.cover || '⭐'}</span>}
+              {s.coverImg ? <img src={s.coverImg} className="size-9 rounded-full object-cover" alt="" /> : (
+                s.color2 ? (
+                  <span className="size-9 rounded-full" style={{ background: `linear-gradient(135deg, ${s.color}, ${s.color2})` }} />
+                ) : (
+                  <span className="text-3xl" style={{ color: s.color }}>{s.cover || '⭐'}</span>
+                )
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{s.name} <span className="text-xs text-muted-foreground">{s.level}</span></p>
                 <p className="text-xs text-muted-foreground">{STAR_STATUS[s.status]} · 物料{matCount(s.id)} · 行程{schCount(s.id)} · 应援{fmtMoneyShort(supAmount(s.id))}</p>

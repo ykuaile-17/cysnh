@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Link2 } from 'lucide-react';
-import { ImagePicker } from '@/components/ImagePicker';
+import { ImagePicker, MultiImagePicker } from '@/components/ImagePicker';
 import { parseLink } from '@/lib/linkparse';
 import { toast } from 'sonner';
 
@@ -112,6 +112,12 @@ export function ImageField({ label = '图片', value, onChange }: {
   label?: string; value?: string; onChange: (v: string | undefined) => void;
 }) {
   return <ImagePicker value={value} onChange={onChange} label={label} />;
+}
+
+export function MultiImageField({ label = '图片', value, onChange, max }: {
+  label?: string; value?: string[]; onChange: (v: string[]) => void; max?: number;
+}) {
+  return <MultiImagePicker value={value} onChange={onChange} label={label} max={max} />;
 }
 
 export function LinkField({ label = '链接', value, onChange, onResolved }: {

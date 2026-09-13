@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, hardDelete, restore, uid } from '@/lib/db';
 import { rollbackTo } from '@/lib/history';
@@ -7,7 +7,8 @@ import { PageHeader, Empty, StatCard, Pill } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { EditorModal, TextInput, SelectField } from '@/components/form';
+import { ImagePicker, MultiImagePicker } from '@/components/ImagePicker';
+import { EditorModal, Field, TextInput, AreaInput, SelectField } from '@/components/form';
 import { Sun, Moon, Lock, Download, Upload, Trash2, RotateCcw, Palette, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ export default function Profile() {
   const [pinOpen, setPinOpen] = useState(false);
   const [binOpen, setBinOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const history = useLiveQuery(async () => {
@@ -93,15 +95,12 @@ export default function Profile() {
 
       {/* 个人资料 */}
       <div className="flex items-center gap-3 px-4 pt-4">
-        <span className="text-4xl">{profile?.avatar || '🌟'}</span>
+        {profile?.avatarImg ? <img src={profile.avatarImg} className="size-14 rounded-full object-cover" alt="" /> : <span className="text-4xl">{profile?.avatar || '🌟'}</span>}
         <div className="flex-1">
           <p className="text-lg font-bold">{profile?.nickname || '谷主'}</p>
           <p className="text-xs text-muted-foreground">{profile?.signature || '把每一份热爱都收进谷里'}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => {
-          const nn = prompt('昵称', profile?.nickname || ''); const av = prompt('头像emoji', profile?.avatar || '🌟');
-          if (nn !== null) updateProfile({ nickname: nn, avatar: av || profile?.avatar });
-        }}>编辑</Button>
+        <Button variant="outline" size="sm" onClick={() => setProfileOpen(true)}>编辑</Button>
       </div>
 
       {/* 数据总览 */}
@@ -175,7 +174,49 @@ export default function Profile() {
       <PinModal open={pinOpen} onOpenChange={setPinOpen} onSave={savePin} />
       <BinModal open={binOpen} onOpenChange={setBinOpen} trash={trash || []} />
       <HistoryModal open={histOpen} onOpenChange={setHistOpen} items={history || []} />
+      <ProfileEditor open={profileOpen} onOpenChange={setProfileOpen} />
     </div>
+  );
+}
+
+function ProfileEditor({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { profile, updateProfile } = useApp();
+  const [nick, setNick] = useState('');
+  const [sign, setSign] = useState('');
+  const [emoji, setEmoji] = useState('🌟');
+  const [avatarImg, setAvatarImg] = useState<string | undefined>();
+  const [photos, setPhotos] = useState<string[]>([]);
+  useEffect(() => {
+    if (open) {
+      setNick(profile?.nickname || '');
+      setSign(profile?.signature || '');
+      setEmoji(profile?.avatar || '🌟');
+      setAvatarImg(profile?.avatarImg);
+      setPhotos(profile?.photos || []);
+    }
+  }, [open, profile]);
+  const save = () => {
+    updateProfile({ nickname: nick, signature: sign, avatar: emoji, avatarImg, photos });
+    toast.success('已保存');
+    onOpenChange(false);
+  };
+  return (
+    <EditorModal title="编辑个人资料" open={open} onOpenChange={onOpenChange} onSave={save}>
+      <div className="flex items-center gap-3">
+        <div className="relative h-16 w-16 overflow-hidden rounded-full border bg-muted/40">
+          {avatarImg ? <img src={avatarImg} className="h-full w-full object-cover" alt="" /> : <span className="flex h-full w-full items-center justify-center text-3xl">{emoji}</span>}
+        </div>
+        <div className="flex flex-col gap-1">
+          <ImagePicker value={avatarImg} onChange={setAvatarImg} label="" />
+        </div>
+      </div>
+      <Field label="头像 emoji（无头像图时显示）">
+        <Input value={emoji} onChange={e => setEmoji(e.target.value)} className="w-20 text-center text-xl" maxLength={4} />
+      </Field>
+      <TextInput label="昵称" value={nick} onChange={setNick} placeholder="谷主" />
+      <AreaInput label="签名" value={sign} onChange={setSign} placeholder="把每一份热爱都收进谷里" />
+      <MultiImagePicker value={photos} onChange={setPhotos} label="个人相册（可多张）" max={12} />
+    </EditorModal>
   );
 }
 

@@ -49,7 +49,7 @@ export default function StarDetail() {
   return (
     <div>
       <PageHeader
-        title={<span className="flex items-center gap-2">{star.coverImg ? <img src={star.coverImg} className="size-6 rounded-full object-cover" alt="" /> : <span className="text-xl" style={{ color: star.color }}>{star.cover}</span>}{star.name}</span>}
+        title={<span className="flex items-center gap-2">{star.coverImg ? <img src={star.coverImg} className="size-6 rounded-full object-cover" alt="" /> : (star.color2 ? <span className="size-6 rounded-full" style={{ background: `linear-gradient(135deg, ${star.color}, ${star.color2})` }} /> : <span className="text-xl" style={{ color: star.color }}>{star.cover}</span>)}{star.name}</span>}
         onBack={() => navigate('/stars')}
         subtitle={`${STAR_STATUS[star.status]} · ${star.level || ''}`}
         right={<Button variant="ghost" size="icon-sm" onClick={() => navigate(`/stars?edit=${star.id}`)}><Pencil className="size-4" /></Button>}
