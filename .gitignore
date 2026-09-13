@@ -1,0 +1,13 @@
+node_modules
+dist
+dev-dist
+*.local
+.env
+.env.*
+!*.config.ts
+
+# 云环境与 Agent 内部文件，不需要进仓库
+.codebuddy/
+.genie/
+.templates/
+.DS_Store

@@ -1,0 +1,352 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Plus, Trash2, Pencil, ArrowLeft, Dices, BookText, Grid3x3, BarChart3, Settings as SettingsIcon, X } from 'lucide-react';
+import { db, uid, softDelete } from '@/lib/db';
+import { Game, GameStory, GachaRecord, GachaItem, Card, GachaPool } from '@/lib/types';
+import {
+  GAME_STATUS, STORY_STATUS, STORY_TYPE, POOL_TYPE, RARITY_COLOR,
+  fmtNum, fmtDate, fmtMoney,
+} from '@/lib/format';
+import { gachaStats, monthlyTrend } from '@/lib/stats';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
+import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput } from '@/components/form';
+import { toast } from 'sonner';
+
+const cn = (...a: any[]) => a.filter(Boolean).join(' ');
+
+export default function GameDetail() {
+  const { id = '' } = useParams();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const game = useLiveQuery(() => db.games.get(id), [id]);
+  const stories = useLiveQuery(() => db.gameStories.where('gameId').equals(id).filter(s => !s.deletedAt).toArray(), [id]) || [];
+  const pools = useLiveQuery(() => db.gachaPools.where('gameId').equals(id).filter(p => !p.deletedAt).toArray(), [id]) || [];
+  const records = useLiveQuery(() => db.gachaRecords.where('gameId').equals(id).filter(r => !r.deletedAt).toArray(), [id]) || [];
+  const items = useLiveQuery(async () => {
+    const recIds = records.map(r => r.id);
+    if (!recIds.length) return [] as GachaItem[];
+    const all = await db.gachaItems.toArray();
+    return all.filter(i => recIds.includes(i.recordId));
+  }, [records]) || [];
+  const cards = useLiveQuery(() => db.cards.where('gameId').equals(id).filter(c => !c.deletedAt).toArray(), [id]) || [];
+
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [gachaOpen, setGachaOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const [editingStory, setEditingStory] = useState<GameStory | null>(null);
+  const [editingCard, setEditingCard] = useState<Card | null>(null);
+
+  useEffect(() => {
+    const add = params.get('add');
+    if (add === 'story') { setEditingStory(null); setStoryOpen(true); setParams({}, { replace: true }); }
+    if (add === 'gacha') { setGachaOpen(true); setParams({}, { replace: true }); }
+  }, [params, setParams]);
+
+  if (!game) return <Empty icon="⏳" text="加载中…" />;
+
+  // 当前垫抽
+  let pity = 0;
+  [...records].sort((a, b) => +new Date(a.datetime) - +new Date(b.datetime)).forEach(r => {
+    pity += r.pulls;
+    const outs = items.filter(i => i.recordId === r.id && i.isOut);
+    if (outs.length) pity = 0;
+  });
+  const gs = gachaStats(records, items);
+  const outCount = items.filter(i => i.isOut).length;
+
+  return (
+    <div>
+      <PageHeader
+        title={<span className="flex items-center gap-2"><span className="text-xl">{game.cover}</span>{game.name}</span>}
+        onBack={() => navigate('/games')}
+        subtitle={`${GAME_STATUS[game.status]} · ${game.progress || '暂无进度'}`}
+        right={<Button variant="ghost" size="icon-sm" onClick={() => navigate(`/games?edit=${game.id}`)}><Pencil className="size-4" /></Button>}
+      />
+
+      <Tabs defaultValue="overview" className="px-3 pt-3">
+        <TabsList className="w-full overflow-x-auto">
+          <TabsTrigger value="overview">概览</TabsTrigger>
+          <TabsTrigger value="story">剧情</TabsTrigger>
+          <TabsTrigger value="gacha">抽卡</TabsTrigger>
+          <TabsTrigger value="gallery">图鉴</TabsTrigger>
+          <TabsTrigger value="stats">统计</TabsTrigger>
+          <TabsTrigger value="settings">设置</TabsTrigger>
+        </TabsList>
+
+        {/* 概览 */}
+        <TabsContent value="overview" className="flex flex-col gap-3">
+          <div className="grid grid-cols-3 gap-2">
+            <StatCard label="剧情" value={`${stories.length} 条`} />
+            <StatCard label="总抽数" value={`${fmtNum(gs.totalPulls)}`} accent="text-primary" />
+            <StatCard label="出货" value={`${outCount} 张`} />
+          </div>
+          <div className="rounded-xl border bg-card p-3">
+            <p className="text-xs text-muted-foreground">当前垫抽</p>
+            <p className="text-2xl font-bold">{pity} <span className="text-sm font-normal text-muted-foreground">/ 保底 {game.pityBase || '—'}</span></p>
+            {game.pityBase > 0 && pity >= game.pityBase - 10 && <p className="mt-1 text-xs text-amber-500">快保底了，冲！</p>}
+          </div>
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={() => navigate(`/games/${id}?add=story`)}><BookText className="size-4" /> 记剧情</Button>
+            <Button className="flex-1" variant="secondary" onClick={() => setGachaOpen(true)}><Dices className="size-4" /> 记抽卡</Button>
+          </div>
+        </TabsContent>
+
+        {/* 剧情 */}
+        <TabsContent value="story" className="flex flex-col gap-2">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => { setEditingStory(null); setStoryOpen(true); }}><Plus className="size-4" /> 添加</Button>
+          </div>
+          {stories.length === 0 ? <Empty icon="📜" text="还没有剧情记录" /> : stories.map(s => (
+            <div key={s.id} onClick={() => { setEditingStory(s); setStoryOpen(true); }}
+              className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{s.title}</span>
+                <Pill>{STORY_TYPE[s.type]}</Pill>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{s.chapter} · {STORY_STATUS[s.status]}{s.rating ? ` · ${'★'.repeat(s.rating)}` : ''}</p>
+              {s.spoiler && <span className="mt-1 inline-block rounded bg-destructive/10 px-1.5 text-[11px] text-destructive">含剧透</span>}
+            </div>
+          ))}
+        </TabsContent>
+
+        {/* 抽卡 */}
+        <TabsContent value="gacha" className="flex flex-col gap-2">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => setGachaOpen(true)}><Plus className="size-4" /> 记抽卡</Button>
+          </div>
+          {records.length === 0 ? <Empty icon="🎲" text="还没有抽卡记录" /> : (
+            <div className="flex flex-col gap-2">
+              {[...records].sort((a, b) => +new Date(b.datetime) - +new Date(a.datetime)).map(r => {
+                const its = items.filter(i => i.recordId === r.id);
+                const pool = pools.find(p => p.id === r.poolId);
+                return (
+                  <div key={r.id} className="rounded-xl border bg-card p-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{pool?.name || '未知卡池'}</span>
+                      <span className="text-muted-foreground">{fmtDate(r.datetime)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{POOL_TYPE[pool?.type || 'other']} · {r.pulls} 抽 · {fmtMoney(r.costAmount)}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {its.map(i => (
+                        <span key={i.id} className="rounded px-1.5 py-0.5 text-xs"
+                          style={{ background: `${RARITY_COLOR[i.rarity] || '#999'}22`, color: RARITY_COLOR[i.rarity] || '#666' }}>
+                          {i.rarity} {i.cardName}{i.isMiss ? ' (歪)' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* 图鉴 */}
+        <TabsContent value="gallery" className="flex flex-col gap-2">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => { setEditingCard(null); setCardOpen(true); }}><Plus className="size-4" /> 添加卡面</Button>
+          </div>
+          {cards.length === 0 ? <Empty icon="🃏" text="图鉴还是空的" /> : (
+            <div className="grid grid-cols-2 gap-2">
+              {cards.map(c => (
+                <div key={c.id} onClick={() => { setEditingCard(c); setCardOpen(true); }}
+                  className={cn('rounded-xl border p-3', c.owned ? 'bg-card' : 'bg-muted/40 opacity-70')}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{c.name}</span>
+                    <span className="text-xs" style={{ color: RARITY_COLOR[c.rarity] }}>{c.rarity}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{c.character}</p>
+                  <Pill color={c.owned ? '#22c55e' : '#94a3b8'}>{c.owned ? '已拥有' : '未拥有'}</Pill>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* 统计 */}
+        <TabsContent value="stats" className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <StatCard label="总抽数" value={fmtNum(gs.totalPulls)} />
+            <StatCard label="总出货" value={outCount} />
+            <StatCard label="出货率" value={`${gs.rate.toFixed(1)}%`} accent="text-primary" />
+            <StatCard label="UP命中率" value={`${gs.upRate.toFixed(1)}%`} />
+            <StatCard label="歪率" value={`${gs.missRate.toFixed(1)}%`} />
+            <StatCard label="平均出货抽数" value={gs.avgPull.toFixed(1)} />
+          </div>
+          <BarChart title="月度抽卡趋势" data={monthlyTrend(records, r => r.pulls, 6).map(d => ({ ...d, value: d.value }))} color="#7c5cff" />
+        </TabsContent>
+
+        {/* 设置 */}
+        <TabsContent value="settings" className="flex flex-col gap-2">
+          <Button variant="outline" onClick={() => navigate(`/games?edit=${game.id}`)}><SettingsIcon className="size-4" /> 编辑游戏</Button>
+          <Button variant="outline" onClick={() => { db.games.update(id, { archived: !game.archived, updatedAt: Date.now() }); toast(game.archived ? '已取消归档' : '已归档'); }}>
+            {game.archived ? '取消归档' : '归档'}
+          </Button>
+          <Button variant="destructive" onClick={() => { softDelete(db.games, id); toast('已移到回收站'); navigate('/games'); }}>删除（回收站）</Button>
+        </TabsContent>
+      </Tabs>
+      <div className="h-4" />
+
+      <StoryEditor open={storyOpen} onOpenChange={setStoryOpen} gameId={id} story={editingStory} />
+      <GachaEditor open={gachaOpen} onOpenChange={setGachaOpen} gameId={id} pools={pools} />
+      <CardEditor open={cardOpen} onOpenChange={setCardOpen} gameId={id} card={editingCard} />
+    </div>
+  );
+}
+
+function BarChart({ title, data, color }: { title: string; data: { month: string; value: number }[]; color: string }) {
+  const max = Math.max(1, ...data.map(d => d.value));
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <p className="mb-2 text-sm font-semibold">{title}</p>
+      <div className="flex items-end gap-2" style={{ height: 100 }}>
+        {data.map(d => (
+          <div key={d.month} className="flex flex-1 flex-col items-center gap-1">
+            <div className="flex w-full items-end justify-center" style={{ height: 80 }}>
+              <div className="w-full rounded-t bg-primary/70" style={{ height: `${(d.value / max) * 80}px`, background: color }} />
+            </div>
+            <span className="text-[10px] text-muted-foreground">{d.month}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StoryEditor({ open, onOpenChange, gameId, story }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; story: GameStory | null;
+}) {
+  const [d, setD] = useState<Partial<GameStory>>({});
+  useEffect(() => {
+    if (open) setD(story ? { ...story } : {
+      type: 'main', title: '', chapter: '', status: 'unwatch', startDate: '', endDate: '',
+      progress: '', summary: '', feeling: '', rating: 0, spoiler: false, tags: [], note: '',
+    });
+  }, [open, story]);
+  const save = async () => {
+    if (!d.title?.trim()) { toast.error('请填写标题'); return; }
+    const now = Date.now();
+    if (story) await db.gameStories.update(story.id, { ...d, updatedAt: now });
+    else await db.gameStories.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+      type: (d.type as any) || 'main', title: d.title!, chapter: d.chapter || '', startDate: d.startDate || '',
+      endDate: d.endDate || '', status: (d.status as any) || 'unwatch', progress: d.progress || '', summary: d.summary || '',
+      feeling: d.feeling || '', rating: d.rating || 0, spoiler: !!d.spoiler, tags: d.tags || [], note: d.note || '' });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={story ? '编辑剧情' : '记剧情'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <SelectField label="类型" value={d.type || 'main'} onChange={v => setD({ ...d, type: v as any })}
+        options={Object.entries(STORY_TYPE).map(([value, label]) => ({ value, label }))} />
+      <TextInput label="标题" value={d.title || ''} onChange={v => setD({ ...d, title: v })} />
+      <TextInput label="章节/版本" value={d.chapter || ''} onChange={v => setD({ ...d, chapter: v })} />
+      <SelectField label="状态" value={d.status || 'unwatch'} onChange={v => setD({ ...d, status: v as any })}
+        options={Object.entries(STORY_STATUS).map(([value, label]) => ({ value, label }))} />
+      <div className="grid grid-cols-2 gap-3">
+        <DateInput label="开始" value={d.startDate || ''} onChange={v => setD({ ...d, startDate: v })} />
+        <DateInput label="完成" value={d.endDate || ''} onChange={v => setD({ ...d, endDate: v })} />
+      </div>
+      <NumInput label="评分(1-5)" value={d.rating ?? 0} onChange={v => setD({ ...d, rating: v })} />
+      <AreaInput label="剧情梗概" value={d.summary || ''} onChange={v => setD({ ...d, summary: v })} />
+      <AreaInput label="个人感想" value={d.feeling || ''} onChange={v => setD({ ...d, feeling: v })} />
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.spoiler} onChange={e => setD({ ...d, spoiler: e.target.checked })} /> 含剧透（折叠）</label>
+      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
+    </EditorModal>
+  );
+}
+
+function GachaEditor({ open, onOpenChange, gameId, pools }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; pools: GachaPool[];
+}) {
+  const [poolId, setPoolId] = useState('');
+  const [datetime, setDatetime] = useState(new Date().toISOString().slice(0, 10));
+  const [pulls, setPulls] = useState(10);
+  const [costType, setCostType] = useState('');
+  const [costAmount, setCostAmount] = useState(0);
+  const [note, setNote] = useState('');
+  const [rows, setRows] = useState<{ cardName: string; character: string; rarity: string; isUp: boolean; isOut: boolean; isMiss: boolean; pullIndex: number }[]>([]);
+
+  useEffect(() => { if (open) { setPoolId(pools[0]?.id || ''); setRows([]); setPulls(10); setCostAmount(0); setCostType(''); setNote(''); } }, [open, pools]);
+
+  const addRow = () => setRows([...rows, { cardName: '', character: '', rarity: 'SR', isUp: false, isOut: true, isMiss: false, pullIndex: rows.length + 1 }]);
+  const updRow = (i: number, patch: any) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
+
+  const save = async () => {
+    if (pulls <= 0) { toast.error('抽数必须大于0'); return; }
+    const now = Date.now();
+    const recId = uid();
+    await db.gachaRecords.add({ id: recId, gameId, poolId: poolId || null, datetime, pulls, costType, costAmount, note, createdAt: now, updatedAt: now, deletedAt: null });
+    if (rows.length) {
+      await db.gachaItems.bulkAdd(rows.map(r => ({ id: uid(), recordId: recId, cardName: r.cardName, character: r.character, rarity: r.rarity, isUp: r.isUp, isOut: r.isOut, pullIndex: r.pullIndex, isGuaranteed: false, isMiss: r.isMiss })));
+    }
+    toast.success('已记录抽卡'); onOpenChange(false);
+  };
+
+  return (
+    <EditorModal title="记抽卡" open={open} onOpenChange={onOpenChange} onSave={save}>
+      <SelectField label="卡池" value={poolId} onChange={setPoolId}
+        options={pools.length ? pools.map(p => ({ value: p.id, label: p.name })) : [{ value: '', label: '（无卡池）' }]} />
+      <DateInput label="日期" value={datetime} onChange={setDatetime} />
+      <NumInput label="抽数" value={pulls} onChange={setPulls} />
+      <div className="grid grid-cols-2 gap-3">
+        <TextInput label="消耗资源" value={costType} onChange={setCostType} placeholder="如：原石" />
+        <NumInput label="消耗数量" value={costAmount} onChange={setCostAmount} />
+      </div>
+      <AreaInput label="备注" value={note} onChange={setNote} />
+
+      <div className="mt-1 border-t pt-2">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-sm font-medium">出货明细</span>
+          <Button size="sm" variant="outline" onClick={addRow}><Plus className="size-3.5" /> 加一行</Button>
+        </div>
+        {rows.map((r, i) => (
+          <div key={i} className="mb-2 rounded-lg border p-2">
+            <div className="flex items-center gap-1">
+              <Input value={r.cardName} onChange={e => updRow(i, { cardName: e.target.value })} placeholder="卡面名" className="h-8 flex-1 text-sm" />
+              <select value={r.rarity} onChange={e => updRow(i, { rarity: e.target.value })} className="h-8 rounded border bg-transparent px-1 text-sm">
+                {['SSR', 'SR', 'R', 'UR', 'N'].map(x => <option key={x} value={x}>{x}</option>)}
+              </select>
+              <button onClick={() => setRows(rows.filter((_, idx) => idx !== i))} className="text-destructive"><X className="size-4" /></button>
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <label className="flex items-center gap-1"><input type="checkbox" checked={r.isOut} onChange={e => updRow(i, { isOut: e.target.checked })} /> 出货</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={r.isUp} onChange={e => updRow(i, { isUp: e.target.checked })} /> 当期UP</label>
+              <label className="flex items-center gap-1"><input type="checkbox" checked={r.isMiss} onChange={e => updRow(i, { isMiss: e.target.checked })} /> 歪了</label>
+            </div>
+          </div>
+        ))}
+      </div>
+    </EditorModal>
+  );
+}
+
+function CardEditor({ open, onOpenChange, gameId, card }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; card: Card | null;
+}) {
+  const [d, setD] = useState<Partial<Card>>({});
+  useEffect(() => {
+    if (open) setD(card ? { ...card } : { name: '', character: '', rarity: 'SSR', owned: true, obtainWay: '', obtainDate: '' });
+  }, [open, card]);
+  const save = async () => {
+    if (!d.name?.trim()) { toast.error('请填写卡面名'); return; }
+    const now = Date.now();
+    if (card) await db.cards.update(card.id, { ...d, updatedAt: now });
+    else await db.cards.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+      name: d.name!, character: d.character || '', rarity: d.rarity || 'SSR', owned: !!d.owned, obtainWay: d.obtainWay || '', obtainDate: d.obtainDate || '' });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={card ? '编辑卡面' : '添加卡面'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <TextInput label="卡面名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
+      <TextInput label="角色" value={d.character || ''} onChange={v => setD({ ...d, character: v })} />
+      <SelectField label="稀有度" value={d.rarity || 'SSR'} onChange={v => setD({ ...d, rarity: v })}
+        options={['SSR', 'UR', 'SR', 'R', 'N'].map(x => ({ value: x, label: x }))} />
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
+      <TextInput label="获取方式" value={d.obtainWay || ''} onChange={v => setD({ ...d, obtainWay: v })} />
+      <DateInput label="获得日期" value={d.obtainDate || ''} onChange={v => setD({ ...d, obtainDate: v })} />
+    </EditorModal>
+  );
+}
