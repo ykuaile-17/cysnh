@@ -4,11 +4,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Search as SearchIcon, Trash2, Pencil } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
 import type { Merch } from '@/lib/types';
+import { logHistory } from '@/lib/history';
 import { MERCH_STATUS, fmtMoney } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField } from '@/components/form';
 import { toast } from 'sonner';
 
 const STATUS_OPTS = Object.entries(MERCH_STATUS).map(([value, label]) => ({ value, label }));
@@ -26,12 +27,16 @@ function MerchEditor({ merch, open, onOpenChange }: { merch: Merch | null; open:
     if (!d.name?.trim()) { toast.error('请填写名称'); return; }
     const total = (d.totalPrice ?? 0) || (d.qty || 1) * (d.unitPrice ?? 0);
     const now = Date.now();
-    if (merch) await db.merch.update(merch.id, { ...d, totalPrice: total, updatedAt: now });
-    else await db.merch.add({ id: uid(), createdAt: now, updatedAt: now, deletedAt: null,
-      name: d.name!, cover: d.cover || '🎎', ip: d.ip || '', character: d.character || '', type: d.type || '手办',
-      pattern: d.pattern || '', version: d.version || '', official: (d.official as any) || 'official', condition: d.condition || '全新',
-      qty: d.qty || 1, unitPrice: d.unitPrice ?? 0, totalPrice: total, acquireDate: d.acquireDate || '', platform: d.platform || '',
-      shop: d.shop || '', orderNo: d.orderNo || '', logistics: d.logistics || '', status: (d.status as any) || 'own', location: d.location || '', tags: d.tags || [], note: d.note || '' });
+    if (merch) { const p = { ...d, coverImg: d.coverImg, totalPrice: total, updatedAt: now }; await db.merch.update(merch.id, p); logHistory('merch', merch.id, d.name!, 'update', merch, p); }
+    else {
+      const newId = uid();
+      const p = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
+        name: d.name!, cover: d.cover || '🎎', coverImg: d.coverImg, ip: d.ip || '', character: d.character || '', type: d.type || '手办',
+        pattern: d.pattern || '', version: d.version || '', official: (d.official as any) || 'official', condition: d.condition || '全新',
+        qty: d.qty || 1, unitPrice: d.unitPrice ?? 0, totalPrice: total, acquireDate: d.acquireDate || '', platform: d.platform || '',
+        shop: d.shop || '', orderNo: d.orderNo || '', logistics: d.logistics || '', status: (d.status as any) || 'own', location: d.location || '', tags: d.tags || [], note: d.note || '' };
+      await db.merch.add(p); logHistory('merch', newId, d.name!, 'create', null, p);
+    }
     toast.success('已保存'); onOpenChange(false);
   };
   return (
@@ -40,6 +45,7 @@ function MerchEditor({ merch, open, onOpenChange }: { merch: Merch | null; open:
         <Field label="实物图"><Input value={d.cover || ''} onChange={e => setD({ ...d, cover: e.target.value })} className="w-16 text-center text-xl" maxLength={4} /></Field>
         <div className="flex-1"><TextInput label="名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} /></div>
       </div>
+      <ImageField label="实物照片（可选）" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
       <div className="grid grid-cols-2 gap-3">
         <TextInput label="IP/作品" value={d.ip || ''} onChange={v => setD({ ...d, ip: v })} />
         <TextInput label="角色/CP" value={d.character || ''} onChange={v => setD({ ...d, character: v })} />
@@ -108,7 +114,7 @@ export default function Merch() {
           {filtered.map(m => (
             <div key={m.id} onClick={() => navigate(`/merch/${m.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
-              <span className="text-3xl">{m.cover || '🎎'}</span>
+              {m.coverImg ? <img src={m.coverImg} className="size-9 rounded-lg object-cover" alt="" /> : <span className="text-3xl">{m.cover || '🎎'}</span>}
               <p className="truncate font-medium">{m.name}</p>
               <p className="truncate text-xs text-muted-foreground">{m.ip}{m.character ? ' · ' + m.character : ''}</p>
               <div className="flex items-center justify-between">

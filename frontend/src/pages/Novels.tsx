@@ -4,11 +4,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Search as SearchIcon, Trash2, Pencil } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
 import { Novel } from '@/lib/types';
+import { logHistory } from '@/lib/history';
 import { NOVEL_STATUS } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField } from '@/components/form';
 import { toast } from 'sonner';
 
 const STATUS_OPTS = Object.entries(NOVEL_STATUS).map(([value, label]) => ({ value, label }));
@@ -24,11 +25,15 @@ function NovelEditor({ novel, open, onOpenChange }: { novel: Novel | null; open:
   const save = async () => {
     if (!d.title?.trim()) { toast.error('请填写书名'); return; }
     const now = Date.now();
-    if (novel) await db.novels.update(novel.id, { ...d, updatedAt: now });
-    else await db.novels.add({ id: uid(), createdAt: now, updatedAt: now, deletedAt: null,
-      title: d.title!, author: d.author || '', cover: d.cover || '📚', type: d.type || '', theme: d.theme || '',
-      source: d.source || '', status: (d.status as any) || 'want', serialStatus: d.serialStatus || '', words: d.words || 0,
-      chapters: d.chapters || 0, startDate: d.startDate || '', finishDate: d.finishDate || '', rating: d.rating || 0, tags: d.tags || [], note: d.note || '' });
+    if (novel) { const p = { ...d, coverImg: d.coverImg, updatedAt: now }; await db.novels.update(novel.id, p); logHistory('novels', novel.id, d.title!, 'update', novel, p); }
+    else {
+      const newId = uid();
+      const p = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
+        title: d.title!, author: d.author || '', cover: d.cover || '📚', coverImg: d.coverImg, type: d.type || '', theme: d.theme || '',
+        source: d.source || '', status: (d.status as any) || 'want', serialStatus: d.serialStatus || '', words: d.words || 0,
+        chapters: d.chapters || 0, startDate: d.startDate || '', finishDate: d.finishDate || '', rating: d.rating || 0, tags: d.tags || [], note: d.note || '' };
+      await db.novels.add(p); logHistory('novels', newId, d.title!, 'create', null, p);
+    }
     toast.success('已保存'); onOpenChange(false);
   };
   return (
@@ -37,6 +42,7 @@ function NovelEditor({ novel, open, onOpenChange }: { novel: Novel | null; open:
         <Field label="封面"><Input value={d.cover || ''} onChange={e => setD({ ...d, cover: e.target.value })} className="w-16 text-center text-xl" maxLength={4} /></Field>
         <div className="flex-1"><TextInput label="书名" value={d.title || ''} onChange={v => setD({ ...d, title: v })} /></div>
       </div>
+      <ImageField label="封面图（可选）" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
       <TextInput label="作者" value={d.author || ''} onChange={v => setD({ ...d, author: v })} />
       <div className="grid grid-cols-2 gap-3">
         <TextInput label="类型" value={d.type || ''} onChange={v => setD({ ...d, type: v })} placeholder="奇幻" />
@@ -105,7 +111,7 @@ export default function Novels() {
             <div key={n.id} onClick={() => navigate(`/novels/${n.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
               <div className="flex items-center gap-2">
-                <span className="text-3xl">{n.cover || '📚'}</span>
+                {n.coverImg ? <img src={n.coverImg} className="size-9 rounded-lg object-cover" alt="" /> : <span className="text-3xl">{n.cover || '📚'}</span>}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{n.title}</p>
                   <p className="truncate text-xs text-muted-foreground">{n.author}</p>

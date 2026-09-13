@@ -46,7 +46,7 @@ export default function NovelDetail() {
   return (
     <div>
       <PageHeader
-        title={<span className="flex items-center gap-2"><span className="text-xl">{novel.cover}</span>{novel.title}</span>}
+        title={<span className="flex items-center gap-2">{novel.coverImg ? <img src={novel.coverImg} className="size-6 rounded object-cover" alt="" /> : <span className="text-xl">{novel.cover}</span>}{novel.title}</span>}
         onBack={() => navigate('/novels')}
         subtitle={`${novel.author} · ${NOVEL_STATUS[novel.status]}`}
         right={<Button variant="ghost" size="icon-sm" onClick={() => navigate(`/novels?edit=${novel.id}`)}><Pencil className="size-4" /></Button>}
@@ -165,7 +165,25 @@ export default function NovelDetail() {
 
 function ReadingEditor({ open, onOpenChange, novelId }: any) {
   const [d, setD] = useState<any>({});
+  const [ocrBusy, setOcrBusy] = useState(false);
   useEffect(() => { if (open) setD({ datetime: new Date().toISOString().slice(0, 10), mode: 'ebook', startChapter: '', endChapter: '', words: 0, duration: 0, progress: '', mood: '', feeling: '', note: '' }); }, [open]);
+  const runOcr = async () => {
+    setOcrBusy(true);
+    try {
+      const { ocrImage, extractNumbers } = await import('@/lib/ocr');
+      const url = await new Promise<string>((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = () => { const f = input.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => resolve(r.result as string); r.readAsDataURL(f); };
+        input.click();
+      });
+      const text = await ocrImage(url, () => {});
+      const nums = extractNumbers(text);
+      if (nums.length) setD({ ...d, words: nums[0] });
+      toast.success(nums.length ? `识别到字数 ${nums[0]}，请核对` : '未识别到数字');
+    } catch { toast.error('识别失败'); }
+    finally { setOcrBusy(false); }
+  };
   const save = async () => {
     const now = Date.now();
     await db.readingLogs.add({ id: uid(), novelId, createdAt: now, updatedAt: now, deletedAt: null, ...d });
@@ -173,6 +191,11 @@ function ReadingEditor({ open, onOpenChange, novelId }: any) {
   };
   return (
     <EditorModal title="记阅读" open={open} onOpenChange={onOpenChange} onSave={save}>
+      <div className="rounded-lg border bg-muted/30 p-2">
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={runOcr} disabled={ocrBusy}>
+          {ocrBusy ? '识别中…' : '📷 从阅读截图识别字数'}
+        </Button>
+      </div>
       <DateInput label="日期" value={d.datetime || ''} onChange={v => setD({ ...d, datetime: v })} />
       <SelectField label="方式" value={d.mode || 'ebook'} onChange={v => setD({ ...d, mode: v })} options={Object.entries(READ_MODE).map(([value, label]) => ({ value, label }))} />
       <div className="grid grid-cols-2 gap-3">

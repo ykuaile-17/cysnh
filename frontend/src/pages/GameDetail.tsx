@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Trash2, Pencil, ArrowLeft, Dices, BookText, Grid3x3, BarChart3, Settings as SettingsIcon, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowLeft, Dices, BookText, Grid3x3, BarChart3, Settings as SettingsIcon, X, UserCircle2 } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
-import { Game, GameStory, GachaRecord, GachaItem, Card, GachaPool } from '@/lib/types';
+import { Game, GameStory, GachaRecord, GachaItem, Card, GachaPool, GameAccount } from '@/lib/types';
+import { logHistory } from '@/lib/history';
 import {
   GAME_STATUS, STORY_STATUS, STORY_TYPE, POOL_TYPE, RARITY_COLOR,
   fmtNum, fmtDate, fmtMoney,
@@ -13,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput, ImageField } from '@/components/form';
 import { toast } from 'sonner';
 
 const cn = (...a: any[]) => a.filter(Boolean).join(' ');
@@ -33,12 +34,15 @@ export default function GameDetail() {
     return all.filter(i => recIds.includes(i.recordId));
   }, [records]) || [];
   const cards = useLiveQuery(() => db.cards.where('gameId').equals(id).filter(c => !c.deletedAt).toArray(), [id]) || [];
+  const accounts = useLiveQuery(() => db.accounts.where('gameId').equals(id).filter(a => !a.deletedAt).toArray(), [id]) || [];
 
   const [storyOpen, setStoryOpen] = useState(false);
   const [gachaOpen, setGachaOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [acctOpen, setAcctOpen] = useState(false);
   const [editingStory, setEditingStory] = useState<GameStory | null>(null);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [editingAcct, setEditingAcct] = useState<GameAccount | null>(null);
 
   useEffect(() => {
     const add = params.get('add');
@@ -48,7 +52,6 @@ export default function GameDetail() {
 
   if (!game) return <Empty icon="⏳" text="加载中…" />;
 
-  // 当前垫抽
   let pity = 0;
   [...records].sort((a, b) => +new Date(a.datetime) - +new Date(b.datetime)).forEach(r => {
     pity += r.pulls;
@@ -61,7 +64,7 @@ export default function GameDetail() {
   return (
     <div>
       <PageHeader
-        title={<span className="flex items-center gap-2"><span className="text-xl">{game.cover}</span>{game.name}</span>}
+        title={<span className="flex items-center gap-2">{game.coverImg ? <img src={game.coverImg} className="size-6 rounded" alt="" /> : <span className="text-xl">{game.cover}</span>}{game.name}</span>}
         onBack={() => navigate('/games')}
         subtitle={`${GAME_STATUS[game.status]} · ${game.progress || '暂无进度'}`}
         right={<Button variant="ghost" size="icon-sm" onClick={() => navigate(`/games?edit=${game.id}`)}><Pencil className="size-4" /></Button>}
@@ -73,6 +76,7 @@ export default function GameDetail() {
           <TabsTrigger value="story">剧情</TabsTrigger>
           <TabsTrigger value="gacha">抽卡</TabsTrigger>
           <TabsTrigger value="gallery">图鉴</TabsTrigger>
+          <TabsTrigger value="account">账号</TabsTrigger>
           <TabsTrigger value="stats">统计</TabsTrigger>
           <TabsTrigger value="settings">设置</TabsTrigger>
         </TabsList>
@@ -155,6 +159,7 @@ export default function GameDetail() {
               {cards.map(c => (
                 <div key={c.id} onClick={() => { setEditingCard(c); setCardOpen(true); }}
                   className={cn('rounded-xl border p-3', c.owned ? 'bg-card' : 'bg-muted/40 opacity-70')}>
+                  {c.coverImg && <img src={c.coverImg} className="mb-2 h-20 w-full rounded object-cover" alt="" />}
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{c.name}</span>
                     <span className="text-xs" style={{ color: RARITY_COLOR[c.rarity] }}>{c.rarity}</span>
@@ -165,6 +170,22 @@ export default function GameDetail() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* 账号 */}
+        <TabsContent value="account" className="flex flex-col gap-2">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => { setEditingAcct(null); setAcctOpen(true); }}><Plus className="size-4" /> 添加账号</Button>
+          </div>
+          {accounts.length === 0 ? <Empty icon="🎮" text="还没有记录游戏账号" /> : accounts.map(a => (
+            <div key={a.id} onClick={() => { setEditingAcct(a); setAcctOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+              <div className="flex items-center justify-between">
+                <span className="font-medium flex items-center gap-1.5"><UserCircle2 className="size-4" />{a.name}</span>
+                <span className="text-xs text-muted-foreground">{a.server}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">UID：{a.uid}{a.role ? ` · ${a.role}` : ''}</p>
+            </div>
+          ))}
         </TabsContent>
 
         {/* 统计 */}
@@ -186,7 +207,7 @@ export default function GameDetail() {
           <Button variant="outline" onClick={() => { db.games.update(id, { archived: !game.archived, updatedAt: Date.now() }); toast(game.archived ? '已取消归档' : '已归档'); }}>
             {game.archived ? '取消归档' : '归档'}
           </Button>
-          <Button variant="destructive" onClick={() => { softDelete(db.games, id); toast('已移到回收站'); navigate('/games'); }}>删除（回收站）</Button>
+          <Button variant="destructive" onClick={() => { softDelete(db.games, id); logHistory('games', id, game.name, 'delete', game, null); toast('已移到回收站'); navigate('/games'); }}>删除（回收站）</Button>
         </TabsContent>
       </Tabs>
       <div className="h-4" />
@@ -194,6 +215,7 @@ export default function GameDetail() {
       <StoryEditor open={storyOpen} onOpenChange={setStoryOpen} gameId={id} story={editingStory} />
       <GachaEditor open={gachaOpen} onOpenChange={setGachaOpen} gameId={id} pools={pools} />
       <CardEditor open={cardOpen} onOpenChange={setCardOpen} gameId={id} card={editingCard} />
+      <AccountEditor open={acctOpen} onOpenChange={setAcctOpen} gameId={id} account={editingAcct} />
     </div>
   );
 }
@@ -268,8 +290,43 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
   const [costAmount, setCostAmount] = useState(0);
   const [note, setNote] = useState('');
   const [rows, setRows] = useState<{ cardName: string; character: string; rarity: string; isUp: boolean; isOut: boolean; isMiss: boolean; pullIndex: number }[]>([]);
+  const [showNewPool, setShowNewPool] = useState(false);
+  const [newPoolName, setNewPoolName] = useState('');
+  const [newPoolType, setNewPoolType] = useState('limited');
+  const [ocrText, setOcrText] = useState('');
+  const [ocrBusy, setOcrBusy] = useState(false);
 
-  useEffect(() => { if (open) { setPoolId(pools[0]?.id || ''); setRows([]); setPulls(10); setCostAmount(0); setCostType(''); setNote(''); } }, [open, pools]);
+  useEffect(() => { if (open) { setPoolId(pools[0]?.id || ''); setRows([]); setPulls(10); setCostAmount(0); setCostType(''); setNote(''); setShowNewPool(false); setNewPoolName(''); setOcrText(''); } }, [open, pools]);
+
+  const createPool = async () => {
+    if (!newPoolName.trim()) { toast.error('请填写卡池名'); return; }
+    const now = Date.now();
+    const pid = uid();
+    await db.gachaPools.add({ id: pid, gameId, name: newPoolName.trim(), type: (newPoolType as any) || 'other', startDate: '', endDate: '', createdAt: now, updatedAt: now, deletedAt: null });
+    setPoolId(pid); setShowNewPool(false); setNewPoolName('');
+    toast.success('已新建卡池');
+  };
+
+  const runOcr = async () => {
+    setOcrBusy(true);
+    try {
+      const { ocrImage, extractNumbers, extractAmount } = await import('@/lib/ocr');
+      const url = await new Promise<string>((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = () => { const f = input.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => resolve(r.result as string); r.readAsDataURL(f); };
+        input.click();
+      });
+      const text = await ocrImage(url, () => {});
+      setOcrText(text);
+      const nums = extractNumbers(text);
+      if (nums.length) setPulls(nums[0]);
+      const amt = extractAmount(text);
+      if (amt) { setCostAmount(amt); setCostType('原石'); }
+      toast.success('已识别，请核对');
+    } catch { toast.error('识别失败'); }
+    finally { setOcrBusy(false); }
+  };
 
   const addRow = () => setRows([...rows, { cardName: '', character: '', rarity: 'SR', isUp: false, isOut: true, isMiss: false, pullIndex: rows.length + 1 }]);
   const updRow = (i: number, patch: any) => setRows(rows.map((r, idx) => idx === i ? { ...r, ...patch } : r));
@@ -278,17 +335,30 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
     if (pulls <= 0) { toast.error('抽数必须大于0'); return; }
     const now = Date.now();
     const recId = uid();
-    await db.gachaRecords.add({ id: recId, gameId, poolId: poolId || null, datetime, pulls, costType, costAmount, note, createdAt: now, updatedAt: now, deletedAt: null });
+    const rec = { id: recId, gameId, poolId: poolId || null, datetime, pulls, costType, costAmount, note, createdAt: now, updatedAt: now, deletedAt: null };
+    await db.gachaRecords.add(rec);
     if (rows.length) {
       await db.gachaItems.bulkAdd(rows.map(r => ({ id: uid(), recordId: recId, cardName: r.cardName, character: r.character, rarity: r.rarity, isUp: r.isUp, isOut: r.isOut, pullIndex: r.pullIndex, isGuaranteed: false, isMiss: r.isMiss })));
     }
+    logHistory('gachaRecords', recId, `${datetime} 抽卡${pulls}次`, 'create', null, rec);
     toast.success('已记录抽卡'); onOpenChange(false);
   };
 
   return (
     <EditorModal title="记抽卡" open={open} onOpenChange={onOpenChange} onSave={save}>
-      <SelectField label="卡池" value={poolId} onChange={setPoolId}
-        options={pools.length ? pools.map(p => ({ value: p.id, label: p.name })) : [{ value: '', label: '（无卡池）' }]} />
+      <div className="flex items-end gap-2">
+        <SelectField label="卡池" value={poolId} onChange={setPoolId}
+          options={pools.length ? pools.map(p => ({ value: p.id, label: p.name })) : [{ value: '', label: '（暂无卡池）' }]} />
+        <Button type="button" variant="outline" size="sm" className="mb-1 shrink-0" onClick={() => setShowNewPool(v => !v)}><Plus className="size-3.5" /> 新建</Button>
+      </div>
+      {showNewPool && (
+        <div className="rounded-lg border p-2">
+          <TextInput label="卡池名称" value={newPoolName} onChange={setNewPoolName} placeholder="如：限定UP·星之少女" />
+          <SelectField label="类型" value={newPoolType} onChange={setNewPoolType}
+            options={Object.entries(POOL_TYPE).map(([value, label]) => ({ value, label }))} />
+          <Button type="button" size="sm" className="w-full" onClick={createPool}>保存卡池</Button>
+        </div>
+      )}
       <DateInput label="日期" value={datetime} onChange={setDatetime} />
       <NumInput label="抽数" value={pulls} onChange={setPulls} />
       <div className="grid grid-cols-2 gap-3">
@@ -296,6 +366,13 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
         <NumInput label="消耗数量" value={costAmount} onChange={setCostAmount} />
       </div>
       <AreaInput label="备注" value={note} onChange={setNote} />
+
+      <div className="rounded-lg border bg-muted/30 p-2">
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={runOcr} disabled={ocrBusy}>
+          {ocrBusy ? '识别中…' : '📷 从抽卡截图识别'}
+        </Button>
+        {ocrText && <p className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">{ocrText}</p>}
+      </div>
 
       <div className="mt-1 border-t pt-2">
         <div className="mb-1 flex items-center justify-between">
@@ -328,14 +405,16 @@ function CardEditor({ open, onOpenChange, gameId, card }: {
 }) {
   const [d, setD] = useState<Partial<Card>>({});
   useEffect(() => {
-    if (open) setD(card ? { ...card } : { name: '', character: '', rarity: 'SSR', owned: true, obtainWay: '', obtainDate: '' });
+    if (!open) return;
+    if (card) setD({ ...card });
+    else setD({ name: '', character: '', rarity: 'SSR', owned: true, obtainWay: '', obtainDate: '', coverImg: undefined });
   }, [open, card]);
   const save = async () => {
     if (!d.name?.trim()) { toast.error('请填写卡面名'); return; }
     const now = Date.now();
     if (card) await db.cards.update(card.id, { ...d, updatedAt: now });
     else await db.cards.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
-      name: d.name!, character: d.character || '', rarity: d.rarity || 'SSR', owned: !!d.owned, obtainWay: d.obtainWay || '', obtainDate: d.obtainDate || '' });
+      name: d.name!, character: d.character || '', rarity: d.rarity || 'SSR', owned: !!d.owned, obtainWay: d.obtainWay || '', obtainDate: d.obtainDate || '', coverImg: d.coverImg });
     toast.success('已保存'); onOpenChange(false);
   };
   return (
@@ -344,9 +423,38 @@ function CardEditor({ open, onOpenChange, gameId, card }: {
       <TextInput label="角色" value={d.character || ''} onChange={v => setD({ ...d, character: v })} />
       <SelectField label="稀有度" value={d.rarity || 'SSR'} onChange={v => setD({ ...d, rarity: v })}
         options={['SSR', 'UR', 'SR', 'R', 'N'].map(x => ({ value: x, label: x }))} />
+      <ImageField label="卡面图片" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
       <TextInput label="获取方式" value={d.obtainWay || ''} onChange={v => setD({ ...d, obtainWay: v })} />
       <DateInput label="获得日期" value={d.obtainDate || ''} onChange={v => setD({ ...d, obtainDate: v })} />
+    </EditorModal>
+  );
+}
+
+function AccountEditor({ open, onOpenChange, gameId, account }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; account: GameAccount | null;
+}) {
+  const [d, setD] = useState<Partial<GameAccount>>({});
+  useEffect(() => {
+    if (open) setD(account ? { ...account } : { name: '', server: '', uid: '', role: '', note: '' });
+  }, [open, account]);
+  const save = async () => {
+    if (!d.name?.trim()) { toast.error('请填写账号名'); return; }
+    const now = Date.now();
+    if (account) await db.accounts.update(account.id, { ...d, updatedAt: now });
+    else await db.accounts.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+      name: d.name!, server: d.server || '', uid: d.uid || '', role: d.role || '', note: d.note || '' });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={account ? '编辑账号' : '添加账号'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <TextInput label="账号名/备注" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
+      <div className="grid grid-cols-2 gap-3">
+        <TextInput label="区服" value={d.server || ''} onChange={v => setD({ ...d, server: v })} />
+        <TextInput label="UID" value={d.uid || ''} onChange={v => setD({ ...d, uid: v })} />
+      </div>
+      <TextInput label="角色名" value={d.role || ''} onChange={v => setD({ ...d, role: v })} />
+      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
   );
 }

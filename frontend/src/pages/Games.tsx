@@ -4,11 +4,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Search as SearchIcon, Archive, Trash2, Pencil } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
 import { Game, GachaRecord } from '@/lib/types';
+import { logHistory } from '@/lib/history';
 import { GAME_STATUS, fmtNum, fmtDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput, ImageField } from '@/components/form';
 import { toast } from 'sonner';
 
 const STATUS_OPTS = Object.entries(GAME_STATUS).map(([value, label]) => ({ value, label }));
@@ -28,12 +29,17 @@ function GameEditor({ game, open, onOpenChange, onSaved }: {
     if (!d.name?.trim()) { toast.error('请填写游戏名称'); return; }
     const now = Date.now();
     if (game) {
-      await db.games.update(game.id, { ...d, updatedAt: now });
+      const payload = { ...d, coverImg: d.coverImg, updatedAt: now };
+      await db.games.update(game.id, payload);
+      logHistory('games', game.id, d.name!, 'update', game, payload);
     } else {
-      await db.games.add({ id: uid(), createdAt: now, updatedAt: now, deletedAt: null,
-        name: d.name!, cover: d.cover || '🎮', platform: d.platform || '', type: d.type || '',
+      const newId = uid();
+      const payload = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
+        name: d.name!, cover: d.cover || '🎮', coverImg: d.coverImg, platform: d.platform || '', type: d.type || '',
         status: (d.status as any) || 'playing', startDate: d.startDate || '', progress: d.progress || '',
-        tags: d.tags || [], note: d.note || '', archived: !!d.archived, pityBase: d.pityBase || 0 });
+        tags: d.tags || [], note: d.note || '', archived: !!d.archived, pityBase: d.pityBase || 0 };
+      await db.games.add(payload);
+      logHistory('games', newId, d.name!, 'create', null, payload);
     }
     toast.success('已保存');
     onSaved();
@@ -50,6 +56,7 @@ function GameEditor({ game, open, onOpenChange, onSaved }: {
           <TextInput label="游戏名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} placeholder="如：星轨幻想" />
         </div>
       </div>
+      <ImageField label="封面图（可选）" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
       <div className="grid grid-cols-2 gap-3">
         <TextInput label="平台" value={d.platform || ''} onChange={v => setD({ ...d, platform: v })} placeholder="iOS/Android" />
         <TextInput label="类型" value={d.type || ''} onChange={v => setD({ ...d, type: v })} placeholder="开放世界" />
@@ -121,7 +128,7 @@ export default function Games() {
             <div key={g.id} onClick={() => navigate(`/games/${g.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
               <div className="flex items-center gap-2">
-                <span className="text-3xl">{g.cover || '🎮'}</span>
+                {g.coverImg ? <img src={g.coverImg} className="size-9 rounded-lg object-cover" alt="" /> : <span className="text-3xl">{g.cover || '🎮'}</span>}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{g.name}</p>
                   <Pill>{GAME_STATUS[g.status]}</Pill>

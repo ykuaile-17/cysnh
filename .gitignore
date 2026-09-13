@@ -11,3 +11,6 @@ dev-dist
 .genie/
 .templates/
 .DS_Store
+
+# download artifact (not part of source)
+cysnh.zip

@@ -3,15 +3,16 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Pencil, Trash2, Clapperboard, Ticket, HeartHandshake, Image } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
-import { Star, Material, Schedule, Support, Media } from '@/lib/types';
+import { Star, Material, Schedule, Support, Media, Photocard, PhotocardKind } from '@/lib/types';
+import { logHistory } from '@/lib/history';
 import {
   STAR_STATUS, MATERIAL_TYPE, MATERIAL_STATUS, SCHEDULE_TYPE, SCHEDULE_STATUS, SUPPORT_TYPE, MEDIA_TYPE,
-  fmtMoney, fmtDate, countdownText,
+  RARITY_COLOR, fmtMoney, fmtDate, countdownText,
 } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField, LinkField } from '@/components/form';
 import { toast } from 'sonner';
 
 export default function StarDetail() {
@@ -23,13 +24,16 @@ export default function StarDetail() {
   const schedules = useLiveQuery(() => db.schedules.where('starId').equals(id).filter(s => !s.deletedAt).toArray(), [id]) || [];
   const supports = useLiveQuery(() => db.supports.where('starId').equals(id).filter(s => !s.deletedAt).toArray(), [id]) || [];
   const media = useLiveQuery(() => db.media.where('starId').equals(id).filter(m => !m.deletedAt).toArray(), [id]) || [];
+  const photocards = useLiveQuery(() => db.photocards.where('starId').equals(id).filter(p => !p.deletedAt).toArray(), [id]) || [];
 
   const [mOpen, setMOpen] = useState(false);
   const [sOpen, setSOpen] = useState(false);
   const [supOpen, setSupOpen] = useState(false);
   const [mdOpen, setMdOpen] = useState(false);
+  const [pcOpen, setPcOpen] = useState(false);
   const [editM, setEditM] = useState<Material | null>(null);
   const [editS, setEditS] = useState<Schedule | null>(null);
+  const [editPc, setEditPc] = useState<Photocard | null>(null);
 
   useEffect(() => {
     const add = params.get('add');
@@ -45,7 +49,7 @@ export default function StarDetail() {
   return (
     <div>
       <PageHeader
-        title={<span className="flex items-center gap-2"><span className="text-xl" style={{ color: star.color }}>{star.cover}</span>{star.name}</span>}
+        title={<span className="flex items-center gap-2">{star.coverImg ? <img src={star.coverImg} className="size-6 rounded-full object-cover" alt="" /> : <span className="text-xl" style={{ color: star.color }}>{star.cover}</span>}{star.name}</span>}
         onBack={() => navigate('/stars')}
         subtitle={`${STAR_STATUS[star.status]} · ${star.level || ''}`}
         right={<Button variant="ghost" size="icon-sm" onClick={() => navigate(`/stars?edit=${star.id}`)}><Pencil className="size-4" /></Button>}
@@ -71,6 +75,7 @@ export default function StarDetail() {
           <TabsTrigger value="schedule">行程</TabsTrigger>
           <TabsTrigger value="support">应援</TabsTrigger>
           <TabsTrigger value="media">图频</TabsTrigger>
+          <TabsTrigger value="photocard">小卡</TabsTrigger>
           <TabsTrigger value="stats">统计</TabsTrigger>
         </TabsList>
 
@@ -143,6 +148,29 @@ export default function StarDetail() {
             <StatCard label="应援金额" value={fmtMoney(spent)} accent="text-destructive" />
           </div>
         </TabsContent>
+
+        <TabsContent value="photocard" className="flex flex-col gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <StatCard label="小卡总数" value={photocards.reduce((s, p) => s + (p.total || 0), 0)} />
+            <StatCard label="不同款" value={photocards.length} />
+            <StatCard label="重复张数" value={photocards.reduce((s, p) => s + (p.dup || 0), 0)} accent="text-amber-500" />
+          </div>
+          <div className="flex justify-end"><Button size="sm" onClick={() => { setEditPc(null); setPcOpen(true); }}><Plus className="size-4" /> 加小卡</Button></div>
+          {photocards.length === 0 ? <Empty icon="💳" text="还没有小卡图鉴" /> : (
+            <div className="flex flex-col gap-2">
+              {photocards.map(p => (
+                <div key={p.id} onClick={() => { setEditPc(p); setPcOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+                  {p.photo && <img src={p.photo} className="mb-2 h-24 w-full rounded object-cover" alt="" />}
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{p.name}</span>
+                    <span className="text-xs" style={{ color: RARITY_COLOR[p.rarity] || '#666' }}>{p.rarity}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{p.album} · 持有{p.owned}/{p.total}{p.dup ? ` · 重复${p.dup}` : ''}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
       <div className="h-4" />
 
@@ -150,6 +178,7 @@ export default function StarDetail() {
       <ScheduleEditor open={sOpen} onOpenChange={setSOpen} starId={id} schedule={editS} />
       <SupportEditor open={supOpen} onOpenChange={setSupOpen} starId={id} />
       <MediaEditor open={mdOpen} onOpenChange={setMdOpen} starId={id} />
+      <PhotocardEditor open={pcOpen} onOpenChange={setPcOpen} starId={id} photocard={editPc} />
     </div>
   );
 }
@@ -167,6 +196,7 @@ function MaterialEditor({ open, onOpenChange, starId, material }: any) {
   return (
     <EditorModal title={material ? '编辑物料' : '记物料'} open={open} onOpenChange={onOpenChange} onSave={save}>
       <SelectField label="类型" value={d.type || 'mv'} onChange={v => setD({ ...d, type: v })} options={Object.entries(MATERIAL_TYPE).map(([value, label]) => ({ value, label }))} />
+      <LinkField label="链接（自动带出标题/平台）" value={d.url || ''} onChange={v => setD({ ...d, url: v })} onResolved={r => setD({ ...d, title: r.title || d.title, platform: r.platform })} />
       <TextInput label="标题" value={d.title || ''} onChange={v => setD({ ...d, title: v })} />
       <div className="grid grid-cols-2 gap-3">
         <TextInput label="所属专辑/节目" value={d.album || ''} onChange={v => setD({ ...d, album: v })} />
@@ -259,6 +289,37 @@ function MediaEditor({ open, onOpenChange, starId }: any) {
         <label className="flex items-center gap-1"><input type="checkbox" checked={!!d.favorite} onChange={e => setD({ ...d, favorite: e.target.checked })} /> 收藏</label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={!!d.best} onChange={e => setD({ ...d, best: e.target.checked })} /> 最爱</label>
       </div>
+    </EditorModal>
+  );
+}
+
+const PHOTOCARD_KIND: Record<string, string> = { album: '专辑', single: '单曲', event: '活动', preorder: '预售', goods: '特典', other: '其他' };
+
+function PhotocardEditor({ open, onOpenChange, starId, photocard }: any) {
+  const [d, setD] = useState<any>({});
+  useEffect(() => { if (open) setD(photocard ? { ...photocard } : { album: '', name: '', kind: 'album', rarity: 'R', total: 1, owned: 1, dup: 0, photo: '', note: '' }); }, [open, photocard]);
+  const save = async () => {
+    if (!d.name?.trim()) { toast.error('请填写卡名'); return; }
+    const now = Date.now();
+    if (photocard) await db.photocards.update(photocard.id, { ...d, updatedAt: now });
+    else await db.photocards.add({ id: uid(), starId, createdAt: now, updatedAt: now, deletedAt: null, ...d });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={photocard ? '编辑小卡' : '加小卡'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <TextInput label="卡名" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
+      <TextInput label="专辑/批次" value={d.album || ''} onChange={v => setD({ ...d, album: v })} />
+      <div className="grid grid-cols-2 gap-3">
+        <SelectField label="类型" value={d.kind || 'album'} onChange={v => setD({ ...d, kind: v })} options={Object.entries(PHOTOCARD_KIND).map(([value, label]) => ({ value, label }))} />
+        <TextInput label="稀有度" value={d.rarity || 'R'} onChange={v => setD({ ...d, rarity: v })} />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <NumInput label="总拥有" value={d.total ?? 1} onChange={v => setD({ ...d, total: v })} />
+        <NumInput label="不同款" value={d.owned ?? 1} onChange={v => setD({ ...d, owned: v })} />
+        <NumInput label="重复" value={d.dup ?? 0} onChange={v => setD({ ...d, dup: v })} />
+      </div>
+      <ImageField label="卡片图片" value={d.photo} onChange={v => setD({ ...d, photo: v })} />
+      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
   );
 }

@@ -4,11 +4,12 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Search as SearchIcon, Trash2, Pencil } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
 import { Star } from '@/lib/types';
+import { logHistory } from '@/lib/history';
 import { STAR_STATUS, STAR_TYPE } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, ImageField } from '@/components/form';
 import { toast } from 'sonner';
 
 const STATUS_OPTS = Object.entries(STAR_STATUS).map(([value, label]) => ({ value, label }));
@@ -25,11 +26,15 @@ function StarEditor({ star, open, onOpenChange }: { star: Star | null; open: boo
   const save = async () => {
     if (!d.name?.trim()) { toast.error('请填写名称'); return; }
     const now = Date.now();
-    if (star) await db.stars.update(star.id, { ...d, updatedAt: now });
-    else await db.stars.add({ id: uid(), createdAt: now, updatedAt: now, deletedAt: null,
-      name: d.name!, alias: d.alias || '', cover: d.cover || '⭐', type: (d.type as any) || 'solo', group: d.group || '',
-      company: d.company || '', birthday: d.birthday || '', debutDate: d.debutDate || '', color: d.color || '#ff7eb6',
-      startDate: d.startDate || '', reason: d.reason || '', status: (d.status as any) || 'active', level: d.level || '', tags: d.tags || [], note: d.note || '' });
+    if (star) { const p = { ...d, coverImg: d.coverImg, updatedAt: now }; await db.stars.update(star.id, p); logHistory('stars', star.id, d.name!, 'update', star, p); }
+    else {
+      const newId = uid();
+      const p = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
+        name: d.name!, alias: d.alias || '', cover: d.cover || '⭐', coverImg: d.coverImg, type: (d.type as any) || 'solo', group: d.group || '',
+        company: d.company || '', birthday: d.birthday || '', debutDate: d.debutDate || '', color: d.color || '#ff7eb6',
+        startDate: d.startDate || '', reason: d.reason || '', status: (d.status as any) || 'active', level: d.level || '', tags: d.tags || [], note: d.note || '' };
+      await db.stars.add(p); logHistory('stars', newId, d.name!, 'create', null, p);
+    }
     toast.success('已保存'); onOpenChange(false);
   };
   return (
@@ -38,6 +43,7 @@ function StarEditor({ star, open, onOpenChange }: { star: Star | null; open: boo
         <Field label="头像"><Input value={d.cover || ''} onChange={e => setD({ ...d, cover: e.target.value })} className="w-16 text-center text-xl" maxLength={4} /></Field>
         <div className="flex-1"><TextInput label="名称/艺名" value={d.name || ''} onChange={v => setD({ ...d, name: v })} placeholder="如：星野遥" /></div>
       </div>
+      <ImageField label="头像图（可选）" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
       <div className="grid grid-cols-2 gap-3">
         <TextInput label="本名/别名" value={d.alias || ''} onChange={v => setD({ ...d, alias: v })} />
         <TextInput label="所属团体/公司" value={d.group || ''} onChange={v => setD({ ...d, group: v })} />
@@ -110,7 +116,7 @@ export default function Stars() {
           {filtered.map(s => (
             <div key={s.id} onClick={() => navigate(`/stars/${s.id}`)}
               className="flex cursor-pointer items-center gap-3 rounded-2xl border bg-card p-3 active:scale-[0.99]">
-              <span className="text-3xl" style={{ color: s.color }}>{s.cover || '⭐'}</span>
+              {s.coverImg ? <img src={s.coverImg} className="size-9 rounded-full object-cover" alt="" /> : <span className="text-3xl" style={{ color: s.color }}>{s.cover || '⭐'}</span>}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{s.name} <span className="text-xs text-muted-foreground">{s.level}</span></p>
                 <p className="text-xs text-muted-foreground">{STAR_STATUS[s.status]} · 物料{matCount(s.id)} · 行程{schCount(s.id)} · 应援{fmtMoneyShort(supAmount(s.id))}</p>

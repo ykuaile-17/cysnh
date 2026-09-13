@@ -1,10 +1,10 @@
 import Dexie, { Table } from 'dexie';
 import {
-  Game, GameStory, GachaPool, GachaRecord, GachaItem, Card,
+  Game, GameStory, GachaPool, GachaRecord, GachaItem, Card, GameAccount,
   Star, Material, Schedule, Support, Media,
   Novel, ReadingLog, Note, Excerpt, Character, BookList,
   Merch, Order, OrderItem, Sale, Storage, Wish,
-  Reminder, Tag, AppSettings,
+  Reminder, Tag, AppSettings, Photocard, HistoryEntry,
 } from './types';
 
 class CiyuanDB extends Dexie {
@@ -34,6 +34,9 @@ class CiyuanDB extends Dexie {
   wishes!: Table<Wish, string>;
   reminders!: Table<Reminder, string>;
   tags!: Table<Tag, string>;
+  accounts!: Table<GameAccount, string>;
+  photocards!: Table<Photocard, string>;
+  history!: Table<HistoryEntry, string>;
 
   constructor() {
     super('ciyuan-storage');
@@ -64,6 +67,9 @@ class CiyuanDB extends Dexie {
       wishes: 'id, deletedAt',
       reminders: 'id, module, targetId, deletedAt, datetime, status',
       tags: 'id, module, deletedAt',
+      accounts: 'id, gameId, deletedAt',
+      photocards: 'id, starId, deletedAt',
+      history: 'id, table, recordId, createdAt',
     });
   }
 }
@@ -103,6 +109,13 @@ export async function seedIfEmpty() {
   const g3 = base({ name: '猫国物语', cover: '🐱', platform: 'Switch', type: '休闲', status: 'completed', startDate: iso(-200), progress: '全收集', tags: ['治愈'], note: '', archived: false, pityBase: 0 });
   await db.games.bulkAdd([g1, g2, g3]);
 
+  // 游戏账号
+  await db.accounts.bulkAdd([
+    base({ gameId: g1.id, name: '主号', server: '天空岛', uid: '800000123', role: '莉莉党', note: '' }),
+    base({ gameId: g1.id, name: '小号', server: '世界树', uid: '800000456', role: '', note: '囤原石' }),
+    base({ gameId: g2.id, name: '苍焰号', server: '炎之境', uid: '200000789', role: '', note: '' }),
+  ]);
+
   // 剧情
   await db.gameStories.bulkAdd([
     base({ gameId: g1.id, type: 'main', title: '风起之章', chapter: '3-2', status: 'watching', progress: '进行中', feeling: '剧情太好哭了', rating: 5, spoiler: true, tags: [] }),
@@ -132,6 +145,13 @@ export async function seedIfEmpty() {
   const s1 = base({ name: '星野遥', alias: '遥遥', cover: '⭐', type: 'solo', group: '', company: 'Stella', birthday: iso(40), debutDate: iso(-400), color: '#7c5cff', startDate: iso(-300), reason: '一首歌入坑', status: 'active', level: '本命', tags: ['歌手'], note: '' });
   const s2 = base({ name: 'Lumina 组合', alias: 'LM', cover: '✨', type: 'group', group: 'Lumina', company: 'Apex', birthday: '', debutDate: iso(-500), color: '#ff7eb6', startDate: iso(-200), reason: '团综', status: 'stable', level: '关注', tags: ['女团'], note: '' });
   await db.stars.bulkAdd([s1, s2]);
+
+  // 小卡 / 专辑图鉴
+  await db.photocards.bulkAdd([
+    base({ starId: s1.id, album: '首专《夜空》', name: '遥遥 主打曲', kind: 'album', rarity: 'SSR', total: 1, owned: 1, dup: 0, note: '' }),
+    base({ starId: s1.id, album: '首专《夜空》', name: '遥遥 特典', kind: 'event', rarity: 'R', total: 3, owned: 1, dup: 2, note: '重复可出' }),
+    base({ starId: s2.id, album: '团综三季', name: 'LM 签名卡', kind: 'event', rarity: 'SR', total: 1, owned: 1, dup: 0, note: '' }),
+  ]);
   await db.materials.bulkAdd([
     base({ starId: s1.id, type: 'mv', title: '夜空的歌 MV', album: '首专', date: iso(-20), platform: 'YouTube', url: '', status: 'watched', rating: 5, feeling: '封神现场', highlight: '副歌直拍', tags: [] }),
     base({ starId: s1.id, type: 'live', title: '巡演首场', episode: '东京', date: iso(-5), platform: '', url: '', status: 'want', rating: 0, feeling: '', highlight: '', tags: [] }),

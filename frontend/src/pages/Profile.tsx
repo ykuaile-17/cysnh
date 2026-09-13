@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, hardDelete, restore, uid } from '@/lib/db';
+import { rollbackTo } from '@/lib/history';
 import { useApp } from '@/lib/app-store';
-import { PageHeader, Empty, StatCard } from '@/components/common';
+import { PageHeader, Empty, StatCard, Pill } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +22,13 @@ export default function Profile() {
   const { profile, ui, modules, pin, updateProfile, updateUI, updateModules, updatePin } = useApp();
   const [pinOpen, setPinOpen] = useState(false);
   const [binOpen, setBinOpen] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const history = useLiveQuery(async () => {
+    const rows = await db.history.orderBy('createdAt').reverse().limit(60).toArray();
+    return rows;
+  }, [], []);
 
   const trash = useLiveQuery(async () => {
     const res: { table: string; label: string; id: string; name: string }[] = [];
@@ -155,10 +162,19 @@ export default function Profile() {
         </Row>
       </Section>
 
+      {/* 版本历史 */}
+      <Section icon={<RotateCcw className="size-4" />} title="版本历史">
+        <Row>
+          <span className="flex items-center gap-1.5">修改记录{(history?.length || 0) > 0 ? `（${(history?.length)})` : ''}</span>
+          <Button size="sm" variant="outline" onClick={() => setHistOpen(true)}>查看</Button>
+        </Row>
+      </Section>
+
       <div className="h-6" />
 
       <PinModal open={pinOpen} onOpenChange={setPinOpen} onSave={savePin} />
       <BinModal open={binOpen} onOpenChange={setBinOpen} trash={trash || []} />
+      <HistoryModal open={histOpen} onOpenChange={setHistOpen} items={history || []} />
     </div>
   );
 }
@@ -210,6 +226,42 @@ function BinModal({ open, onOpenChange, trash }: { open: boolean; onOpenChange: 
               <span className="min-w-0 flex-1 truncate text-sm">{t.name}</span>
               <Button size="sm" variant="ghost" onClick={() => { restore((db as any)[t.table], t.id); toast('已恢复'); }}><RotateCcw className="size-4" /></Button>
               <Button size="sm" variant="ghost" onClick={() => { hardDelete((db as any)[t.table], t.id); toast('已彻底删除'); }}><Trash2 className="size-4 text-destructive" /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </EditorModal>
+  );
+}
+
+const TBL_LABEL: Record<string, string> = Object.fromEntries(TABLES.map(([t, , l]) => [t, l]));
+const ACT_LABEL: Record<string, string> = { create: '新建', update: '修改', delete: '删除' };
+function fmtHistDate(ts: number) {
+  try { return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ''; }
+}
+
+function HistoryModal({ open, onOpenChange, items }: any) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const rollback = async (e: any) => {
+    setBusy(e.id);
+    try { await rollbackTo(e); toast.success('已回滚到该版本'); }
+    catch { toast.error('回滚失败'); }
+    finally { setBusy(null); }
+  };
+  return (
+    <EditorModal title={`版本历史（${items.length}）`} open={open} onOpenChange={onOpenChange} onSave={() => onOpenChange(false)} saveText="关闭">
+      {items.length === 0 ? <Empty icon="🕓" text="暂无修改记录" /> : (
+        <div className="flex flex-col gap-2">
+          {items.map((e: any) => (
+            <div key={e.id} className="rounded-xl border bg-card p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm">{e.title}</span>
+                <Pill color={e.action === 'create' ? '#22c55e' : e.action === 'delete' ? '#ef4444' : '#7c5cff'}>{ACT_LABEL[e.action] || e.action}</Pill>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">{TBL_LABEL[e.table] || e.table} · {fmtHistDate(e.createdAt)}</p>
+              {e.action !== 'create' && (
+                <Button size="sm" variant="ghost" className="mt-1" onClick={() => rollback(e)} disabled={busy === e.id}>回滚到此版本</Button>
+              )}
             </div>
           ))}
         </div>

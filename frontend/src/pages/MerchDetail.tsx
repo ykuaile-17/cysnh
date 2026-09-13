@@ -9,7 +9,7 @@ import { monthlyTrend } from '@/lib/stats';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, LinkField } from '@/components/form';
 import { toast } from 'sonner';
 
 export default function MerchDetail() {
@@ -42,7 +42,7 @@ export default function MerchDetail() {
   return (
     <div>
       <PageHeader
-        title={<span className="flex items-center gap-2"><span className="text-xl">{merch.cover}</span>{merch.name}</span>}
+        title={<span className="flex items-center gap-2">{merch.coverImg ? <img src={merch.coverImg} className="size-6 rounded object-cover" alt="" /> : <span className="text-xl">{merch.cover}</span>}{merch.name}</span>}
         onBack={() => navigate('/merch')}
         subtitle={`${merch.ip} · ${MERCH_STATUS[merch.status]}`}
         right={<Button variant="ghost" size="icon-sm" onClick={() => navigate(`/merch?edit=${merch.id}`)}><Pencil className="size-4" /></Button>}
@@ -161,7 +161,25 @@ function BarChart({ title, data, color }: { title: string; data: { month: string
 
 function OrderEditor({ open, onOpenChange, merch }: any) {
   const [d, setD] = useState<any>({});
-  useEffect(() => { if (open) setD({ name: merch?.name || '', ip: merch?.ip || '', orderDate: new Date().toISOString().slice(0, 10), platform: merch?.platform || '', shop: merch?.shop || '', orderNo: '', originPrice: merch?.totalPrice || 0, shipping: 0, tax: 0, discount: 0, total: merch?.totalPrice || 0, currency: 'CNY', payMethod: '', status: 'paid', logistics: '', trackingNo: '', depositDate: '', balance: 0, arrivalDate: '', note: '' }); }, [open, merch]);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  useEffect(() => { if (open) setD({ name: merch?.name || '', ip: merch?.ip || '', orderDate: new Date().toISOString().slice(0, 10), platform: merch?.platform || '', shop: merch?.shop || '', orderNo: '', originPrice: merch?.totalPrice || 0, shipping: 0, tax: 0, discount: 0, total: merch?.totalPrice || 0, currency: 'CNY', payMethod: '', status: 'paid', logistics: '', trackingNo: '', depositDate: '', balance: 0, arrivalDate: '', note: '', link: '' }); }, [open, merch]);
+  const runOcr = async () => {
+    setOcrBusy(true);
+    try {
+      const { ocrImage, extractAmount } = await import('@/lib/ocr');
+      const url = await new Promise<string>((resolve) => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = () => { const f = input.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => resolve(r.result as string); r.readAsDataURL(f); };
+        input.click();
+      });
+      const text = await ocrImage(url, () => {});
+      const amt = extractAmount(text);
+      if (amt) setD({ ...d, originPrice: amt, total: amt });
+      toast.success(amt ? `识别到金额 ¥${amt}，请核对` : '未识别到金额');
+    } catch { toast.error('识别失败'); }
+    finally { setOcrBusy(false); }
+  };
   const save = async () => {
     const now = Date.now();
     const total = (d.originPrice || 0) + (d.shipping || 0) + (d.tax || 0) - (d.discount || 0);
@@ -171,6 +189,12 @@ function OrderEditor({ open, onOpenChange, merch }: any) {
   };
   return (
     <EditorModal title="记购买/订单" open={open} onOpenChange={onOpenChange} onSave={save}>
+      <div className="rounded-lg border bg-muted/30 p-2">
+        <Button type="button" variant="outline" size="sm" className="w-full" onClick={runOcr} disabled={ocrBusy}>
+          {ocrBusy ? '识别中…' : '📷 从订单截图识别金额'}
+        </Button>
+      </div>
+      <LinkField label="订单链接（自动带出平台）" value={d.link || ''} onChange={v => setD({ ...d, link: v })} onResolved={r => setD({ ...d, platform: r.platform, name: d.name || r.title })} />
       <TextInput label="订单名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
       <TextInput label="IP" value={d.ip || ''} onChange={v => setD({ ...d, ip: v })} />
       <div className="grid grid-cols-2 gap-3">

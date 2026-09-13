@@ -55,6 +55,7 @@ export type GachaPoolType =
 export interface Game extends BaseEntity {
   name: string;
   cover: string; // emoji/color
+  coverImg?: string; // 上传的图片 dataURL
   platform: string;
   type: string;
   status: GameStatus;
@@ -120,6 +121,7 @@ export interface GachaItem {
 export interface Card extends BaseEntity {
   gameId: ID;
   name: string;
+  coverImg?: string;
   character: string;
   rarity: string;
   owned: boolean;
@@ -135,6 +137,7 @@ export interface Star extends BaseEntity {
   name: string;
   alias: string;
   cover: string;
+  coverImg?: string;
   type: StarType;
   group: string;
   company: string;
@@ -257,6 +260,7 @@ export interface Novel extends BaseEntity {
   title: string;
   author: string;
   cover: string;
+  coverImg?: string;
   type: string;
   theme: string;
   source: string;
@@ -360,6 +364,7 @@ export type MerchStatus =
 export interface Merch extends BaseEntity {
   name: string;
   cover: string;
+  coverImg?: string;
   ip: string;
   character: string;
   type: string;
@@ -518,3 +523,42 @@ export interface Tag extends BaseEntity {
   module: string;
   color: string;
 }
+
+// ============ 游戏账号 ============
+export interface GameAccount extends BaseEntity {
+  gameId: ID;
+  name: string; // 账号昵称/备注
+  server: string; // 区服
+  uid: string; // UID
+  role: string; // 角色名
+  note: string;
+}
+
+// ============ 小卡 / 专辑图鉴 ============
+export type PhotocardKind = 'album' | 'single' | 'event' | 'preorder' | 'goods' | 'other';
+
+export interface Photocard extends BaseEntity {
+  starId: ID;
+  album: string; // 专辑/批次名
+  name: string; // 卡名
+  kind: PhotocardKind;
+  rarity: string; // 如 R/SR/SSR
+  total: number; // 该卡总拥有数（含重复）
+  owned: number; // 不同款拥有数
+  dup: number; // 重复张数
+  photo?: string; // 图片 dataURL
+  note: string;
+}
+
+// ============ 版本历史 ============
+export type HistoryAction = 'create' | 'update' | 'delete';
+
+export interface HistoryEntry extends BaseEntity {
+  table: string; // 实体表名
+  recordId: string;
+  title: string; // 便于阅读的描述
+  action: HistoryAction;
+  before: any; // 修改前快照
+  after: any; // 修改后快照
+}
+
