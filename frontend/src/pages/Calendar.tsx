@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CalendarClock, Dices, Sparkles } from 'lucide-react';
-import { db } from '@/lib/db';
+import { db, uid } from '@/lib/db';
+import { toast } from 'sonner';
 import { GachaPool, Game } from '@/lib/types';
 import { POOL_TYPE, REMINDER_TYPE_LABEL, fmtDate, countdownText, daysUntil } from '@/lib/format';
 import { PageHeader, Empty, Pill } from '@/components/common';
@@ -19,6 +20,16 @@ export default function Calendar() {
 
   const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
   const now = Date.now();
+
+  const addPoolReminder = async (p: GachaPool) => {
+    if (!p.endDate) { toast.error('请先给卡池设置结束日期'); return; }
+    const exist = reminders.find(r => r.title === `卡池结束：${p.name}`);
+    if (exist) { toast('该卡池提醒已存在'); return; }
+    await db.reminders.add({ id: uid(), createdAt: Date.now(), updatedAt: Date.now(), deletedAt: null,
+      title: `卡池结束：${p.name}`, module: 'game', targetId: p.gameId, type: 'gacha_end', datetime: p.endDate,
+      repeat: 'none', advance: 1, priority: '中', status: 'pending', note: '' });
+    toast.success('已加入提醒，可在「提醒」页查看');
+  };
 
   const poolStatus = (p: GachaPool) => {
     const start = p.startDate ? +new Date(p.startDate) : null;
@@ -62,11 +73,16 @@ export default function Calendar() {
                   <span className="flex items-center gap-1.5 font-medium">
                     <Dices className="size-4 text-primary" />{p.name}
                   </span>
-                  <Pill color={badge.c}>{badge.t}</Pill>
+                  <div className="flex items-center gap-2">
+                    <Pill color={badge.c}>{badge.t}</Pill>
+                    <button onClick={(e) => { e.stopPropagation(); addPoolReminder(p); }}
+                      className="rounded-full border px-2 py-0.5 text-[11px] text-primary active:scale-95">加入提醒</button>
+                  </div>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {gameMap[p.gameId]?.name || '游戏'} · {POOL_TYPE[p.type] || p.type}
                   {p.type === 'rerun' && <span className="ml-1 text-amber-500">· 复刻</span>}
+                  {p.pityHard ? <span className="ml-1">· 保底 {p.pityHard}</span> : ''}
                 </p>
                 <div className="mt-1 flex justify-between text-xs">
                   <span className="text-muted-foreground">开始 {p.startDate ? fmtDate(p.startDate) : '—'} · 结束 {p.endDate ? fmtDate(p.endDate) : '—'}</span>

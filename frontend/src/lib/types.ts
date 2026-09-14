@@ -96,6 +96,8 @@ export interface GachaPool extends BaseEntity {
   type: GachaPoolType;
   startDate: ISODate;
   endDate: ISODate;
+  pityHard?: number; // 硬保底抽数（按卡池独立）
+  pitySoft?: number; // 软保底抽数（可选）
 }
 
 export interface GachaRecord extends BaseEntity {

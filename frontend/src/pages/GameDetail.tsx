@@ -60,12 +60,22 @@ export default function GameDetail() {
 
   if (!game) return <Empty icon="⏳" text="加载中…" />;
 
-  let pity = 0;
+  // 按卡池独立计算垫抽（同一游戏的不同卡池互不影响）
+  const pityByPool: Record<string, number> = {};
   [...records].sort((a, b) => +new Date(a.datetime) - +new Date(b.datetime)).forEach(r => {
-    pity += r.pulls;
+    if (!r.poolId) return;
+    if (pityByPool[r.poolId] === undefined) pityByPool[r.poolId] = 0;
+    pityByPool[r.poolId] += r.pulls;
     const outs = items.filter(i => i.recordId === r.id && i.isOut);
-    if (outs.length) pity = 0;
+    if (outs.length) pityByPool[r.poolId] = 0;
   });
+  // 当前卡池：最近一条有卡池的记录的卡池；否则最近新建的卡池
+  const lastRecPool = [...records].sort((a, b) => +new Date(b.datetime) - +new Date(a.datetime)).find(r => r.poolId);
+  const currentPool = pools.find(p => p.id === lastRecPool?.poolId)
+    || [...pools].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  const curPity = currentPool ? (pityByPool[currentPool.id] || 0) : 0;
+  const curPityBase = currentPool?.pityHard || 0;
+
   const gs = gachaStats(records, items);
   const outCount = items.filter(i => i.isOut).length;
   const storyMap = Object.fromEntries(stories.map(s => [s.id, s]));
@@ -101,9 +111,9 @@ export default function GameDetail() {
             <StatCard label="出货" value={`${outCount} 张`} />
           </div>
           <div className="rounded-xl border bg-card p-3">
-            <p className="text-xs text-muted-foreground">当前垫抽</p>
-            <p className="text-2xl font-bold">{pity} <span className="text-sm font-normal text-muted-foreground">/ 保底 {game.pityBase || '—'}</span></p>
-            {game.pityBase > 0 && pity >= game.pityBase - 10 && <p className="mt-1 text-xs text-amber-500">快保底了，冲！</p>}
+            <p className="text-xs text-muted-foreground">{currentPool ? `当前卡池：${currentPool.name}` : '当前垫抽'}</p>
+            <p className="text-2xl font-bold">{curPity} <span className="text-sm font-normal text-muted-foreground">/ 保底 {curPityBase || '—'}</span></p>
+            {curPityBase > 0 && curPity >= curPityBase - 10 && <p className="mt-1 text-xs text-amber-500">快保底了，冲！</p>}
           </div>
           <div className="flex gap-2">
             <Button className="flex-1" onClick={() => navigate(`/games/${id}?add=story`)}><BookText className="size-4" /> 记剧情</Button>
@@ -116,7 +126,9 @@ export default function GameDetail() {
           <div className="flex justify-end">
             <Button size="sm" onClick={() => { setEditingStory(null); setStoryOpen(true); }}><Plus className="size-4" /> 添加</Button>
           </div>
-          {stories.length === 0 ? <Empty icon="📜" text="还没有剧情记录" /> : stories.map(s => (
+          {stories.length === 0 ? <Empty icon="📜" text="还没有剧情记录" /> : stories.map(s => {
+            const linked = cards.filter(c => c.storyId === s.id);
+            return (
             <div key={s.id} onClick={() => { setEditingStory(s); setStoryOpen(true); }}
               className="rounded-xl border bg-card p-3 active:scale-[0.99]">
               <div className="flex items-center justify-between">
@@ -131,9 +143,23 @@ export default function GameDetail() {
                   ))}
                 </div>
               )}
+              {linked.length > 0 && (
+                <div className="mt-2 border-t pt-2">
+                  <p className="mb-1 text-[11px] text-muted-foreground">关联卡面（{linked.length}）</p>
+                  <div className="flex gap-1.5 overflow-x-auto">
+                    {linked.map(c => (
+                      <button key={c.id} onClick={(e) => { e.stopPropagation(); setEditingCard(c); setCardOpen(true); }}
+                        className="shrink-0 rounded-lg border bg-muted/40 p-1 text-center">
+                        {c.coverImg ? <img src={c.coverImg} className="size-12 rounded object-cover" alt="" /> : <span className="block size-12 text-[10px] leading-tight flex items-center justify-center">{c.name}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {s.spoiler && <span className="mt-1 inline-block rounded bg-destructive/10 px-1.5 text-[11px] text-destructive">含剧透</span>}
             </div>
-          ))}
+            );
+          })}
         </TabsContent>
 
         {/* 抽卡 */}
@@ -198,7 +224,13 @@ export default function GameDetail() {
                   <p className="text-xs text-muted-foreground">{c.character}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     <Pill color={c.owned ? '#22c55e' : '#94a3b8'}>{c.owned ? '已拥有' : '未拥有'}</Pill>
-                    {c.storyId && storyMap[c.storyId] && <Pill color="#7c5cff">联动：{storyMap[c.storyId].title}</Pill>}
+                    {(() => { const sid = c.storyId; const st = sid ? storyMap[sid] : null; if (!st) return null;
+                      return (
+                      <button onClick={(e) => { e.stopPropagation(); setEditingStory(st); setStoryOpen(true); }}>
+                        <Pill color="#7c5cff">联动：{st.title}</Pill>
+                      </button>
+                      );
+                    })()}
                     {c.accountId && acctMap[c.accountId] && <Pill color="#f59e0b">@{acctMap[c.accountId].name}</Pill>}
                   </div>
                 </div>
@@ -374,6 +406,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
   const [showNewPool, setShowNewPool] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
   const [newPoolType, setNewPoolType] = useState('limited');
+  const [newPoolPity, setNewPoolPity] = useState(0);
   const [ocrText, setOcrText] = useState('');
   const [ocrBusy, setOcrBusy] = useState(false);
 
@@ -383,8 +416,8 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
     if (!newPoolName.trim()) { toast.error('请填写卡池名'); return; }
     const now = Date.now();
     const pid = uid();
-    await db.gachaPools.add({ id: pid, gameId, name: newPoolName.trim(), type: (newPoolType as any) || 'other', startDate: '', endDate: '', createdAt: now, updatedAt: now, deletedAt: null });
-    setPoolId(pid); setShowNewPool(false); setNewPoolName('');
+    await db.gachaPools.add({ id: pid, gameId, name: newPoolName.trim(), type: (newPoolType as any) || 'other', startDate: '', endDate: '', pityHard: newPoolPity || undefined, pitySoft: undefined, createdAt: now, updatedAt: now, deletedAt: null });
+    setPoolId(pid); setShowNewPool(false); setNewPoolName(''); setNewPoolPity(0);
     toast.success('已新建卡池');
   };
 
@@ -437,6 +470,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
           <TextInput label="卡池名称" value={newPoolName} onChange={setNewPoolName} placeholder="如：限定UP·星之少女" />
           <SelectField label="类型" value={newPoolType} onChange={setNewPoolType}
             options={Object.entries(POOL_TYPE).map(([value, label]) => ({ value, label }))} />
+          <NumInput label="硬保底抽数（可选）" value={newPoolPity} onChange={setNewPoolPity} placeholder="如：90" />
           <Button type="button" size="sm" className="w-full" onClick={createPool}>保存卡池</Button>
         </div>
       )}
