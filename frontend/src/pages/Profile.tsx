@@ -13,10 +13,13 @@ import { Sun, Moon, Lock, Download, Upload, Trash2, RotateCcw, Palette, EyeOff }
 import { toast } from 'sonner';
 
 const TABLES: [string, any, string][] = [
-  ['games', 'gameId' as any, '游戏'], ['gameStories', 'gameId', '剧情'], ['gachaRecords', 'gameId', '抽卡'],
-  ['stars', null, '追星'], ['materials', 'starId', '物料'], ['schedules', 'starId', '行程'],
+  ['games', 'gameId' as any, '游戏'], ['gameStories', 'gameId', '剧情'], ['gachaPools', 'gameId', '卡池'], ['gachaRecords', 'gameId', '抽卡'], ['gachaItems', 'recordId', '出货'],
+  ['cards', 'gameId', '卡面'], ['accounts', 'gameId', '账号'], ['topups', 'gameId', '氪金'], ['wardrobe', 'gameId', '衣柜'],
+  ['stars', null, '追星'], ['materials', 'starId', '物料'], ['schedules', 'starId', '行程'], ['supports', 'starId', '应援'], ['media', 'starId', '图频'], ['photocards', 'starId', '小卡'],
   ['novels', null, '小说'], ['readingLogs', 'novelId', '阅读'], ['notes', 'novelId', '笔记'],
-  ['excerpts', 'novelId', '摘抄'], ['merch', null, '周边'], ['orders', null, '订单'], ['sales', 'merchId', '出物'],
+  ['excerpts', 'novelId', '摘抄'], ['characters', 'novelId', '角色'], ['bookLists', null, '书单'],
+  ['merch', null, '周边'], ['orders', null, '订单'], ['orderItems', 'orderId', '订单项'], ['sales', 'merchId', '出物'], ['storage', 'merchId', '收纳'], ['wishes', null, '心愿'],
+  ['reminders', null, '提醒'], ['tags', null, '标签'], ['history', null, '历史'],
 ];
 
 export default function Profile() {

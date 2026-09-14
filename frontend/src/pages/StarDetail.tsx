@@ -12,7 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField, LinkField } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField, LinkField, MultiImageField } from '@/components/form';
+import { ZoomableImage } from '@/components/ImageViewer';
 import { toast } from 'sonner';
 
 export default function StarDetail() {
@@ -160,10 +161,10 @@ export default function StarDetail() {
             <div className="flex flex-col gap-2">
               {photocards.map(p => (
                 <div key={p.id} onClick={() => { setEditPc(p); setPcOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
-                  {p.photo && <img src={p.photo} className="mb-2 h-24 w-full rounded object-cover" alt="" />}
+                  {p.photo && <ZoomableImage src={p.photo} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />}
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{p.name}</span>
-                    <span className="text-xs" style={{ color: RARITY_COLOR[p.rarity] || '#666' }}>{p.rarity}</span>
+                    <span className="truncate font-medium">{p.name}</span>
+                    {p.rarity && <span className="text-xs shrink-0" style={{ color: RARITY_COLOR[p.rarity] || '#666' }}>{p.rarity}</span>}
                   </div>
                   <p className="text-xs text-muted-foreground">{p.album} · 持有{p.owned}/{p.total}{p.dup ? ` · 重复${p.dup}` : ''}</p>
                 </div>
@@ -185,7 +186,7 @@ export default function StarDetail() {
 
 function MaterialEditor({ open, onOpenChange, starId, material }: any) {
   const [d, setD] = useState<any>({});
-  useEffect(() => { if (open) setD(material ? { ...material } : { type: 'mv', title: '', album: '', episode: '', date: '', platform: '', url: '', duration: 0, status: 'want', rating: 0, feeling: '', highlight: '', member: '', tags: [], note: '' }); }, [open, material]);
+  useEffect(() => { if (open) setD(material ? { ...material } : { type: 'mv', title: '', album: '', episode: '', date: '', platform: '', url: '', duration: 0, status: 'want', rating: 0, feeling: '', highlight: '', member: '', tags: [], note: '', images: [] }); }, [open, material]);
   const save = async () => {
     if (!d.title?.trim()) { toast.error('请填写标题'); return; }
     const now = Date.now();
@@ -209,6 +210,7 @@ function MaterialEditor({ open, onOpenChange, starId, material }: any) {
       <TextInput label="平台" value={d.platform || ''} onChange={v => setD({ ...d, platform: v })} />
       <NumInput label="时长(分钟)" value={d.duration ?? 0} onChange={v => setD({ ...d, duration: v })} />
       <AreaInput label="感想/名场面" value={d.feeling || ''} onChange={v => setD({ ...d, feeling: v })} />
+      <MultiImageField label="物料截图（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} />
     </EditorModal>
   );
 }
@@ -297,7 +299,7 @@ const PHOTOCARD_KIND: Record<string, string> = { album: '专辑', single: '单�
 
 function PhotocardEditor({ open, onOpenChange, starId, photocard }: any) {
   const [d, setD] = useState<any>({});
-  useEffect(() => { if (open) setD(photocard ? { ...photocard } : { album: '', name: '', kind: 'album', rarity: 'R', total: 1, owned: 1, dup: 0, photo: '', note: '' }); }, [open, photocard]);
+  useEffect(() => { if (open) setD(photocard ? { ...photocard } : { album: '', name: '', kind: 'album', rarity: '', total: 1, owned: 1, dup: 0, photo: '', note: '' }); }, [open, photocard]);
   const save = async () => {
     if (!d.name?.trim()) { toast.error('请填写卡名'); return; }
     const now = Date.now();
@@ -311,7 +313,7 @@ function PhotocardEditor({ open, onOpenChange, starId, photocard }: any) {
       <TextInput label="专辑/批次" value={d.album || ''} onChange={v => setD({ ...d, album: v })} />
       <div className="grid grid-cols-2 gap-3">
         <SelectField label="类型" value={d.kind || 'album'} onChange={v => setD({ ...d, kind: v })} options={Object.entries(PHOTOCARD_KIND).map(([value, label]) => ({ value, label }))} />
-        <TextInput label="稀有度" value={d.rarity || 'R'} onChange={v => setD({ ...d, rarity: v })} />
+        <TextInput label="稀有度（可选）" value={d.rarity || ''} onChange={v => setD({ ...d, rarity: v })} placeholder="可不填" />
       </div>
       <div className="grid grid-cols-3 gap-3">
         <NumInput label="总拥有" value={d.total ?? 1} onChange={v => setD({ ...d, total: v })} />

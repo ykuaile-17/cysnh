@@ -113,6 +113,8 @@ export default function NovelDetail() {
           {excerpts.length === 0 ? <Empty icon="✏️" text="还没有摘抄" /> : excerpts.map(e => (
             <div key={e.id} onClick={() => { setEditE(e); setEOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
               <p className="text-sm">“{e.content}”</p>
+              {e.feeling && <p className="mt-1 text-xs text-muted-foreground">💭 {e.feeling}</p>}
+              {e.thought && <p className="mt-1 rounded bg-muted/50 p-1.5 text-xs">📝 碎碎念：{e.thought}</p>}
               <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span>— {e.source}{e.favorite ? ' · ❤️' : ''}</span>
               </div>
@@ -235,7 +237,7 @@ function NoteEditor({ open, onOpenChange, novelId, note }: any) {
 
 function ExcerptEditor({ open, onOpenChange, novelId, excerpt }: any) {
   const [d, setD] = useState<any>({});
-  useEffect(() => { if (open) setD(excerpt ? { ...excerpt } : { content: '', source: '', type: '', date: new Date().toISOString().slice(0, 10), feeling: '', favorite: false, best: false }); }, [open, excerpt]);
+  useEffect(() => { if (open) setD(excerpt ? { ...excerpt } : { content: '', source: '', type: '', date: new Date().toISOString().slice(0, 10), feeling: '', thought: '', favorite: false, best: false }); }, [open, excerpt]);
   const save = async () => {
     if (!d.content?.trim()) { toast.error('请填写摘抄内容'); return; }
     const now = Date.now();
@@ -247,6 +249,8 @@ function ExcerptEditor({ open, onOpenChange, novelId, excerpt }: any) {
     <EditorModal title={excerpt ? '编辑摘抄' : '记摘抄'} open={open} onOpenChange={onOpenChange} onSave={save}>
       <AreaInput label="摘抄内容" value={d.content || ''} onChange={v => setD({ ...d, content: v })} rows={4} />
       <TextInput label="出处" value={d.source || ''} onChange={v => setD({ ...d, source: v })} placeholder="如：第212章" />
+      <AreaInput label="感想" value={d.feeling || ''} onChange={v => setD({ ...d, feeling: v })} rows={2} />
+      <AreaInput label="碎碎念" value={d.thought || ''} onChange={v => setD({ ...d, thought: v })} rows={2} placeholder="随手记点什么…" />
       <div className="flex gap-4 text-sm">
         <label className="flex items-center gap-1"><input type="checkbox" checked={!!d.favorite} onChange={e => setD({ ...d, favorite: e.target.checked })} /> 收藏</label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={!!d.best} onChange={e => setD({ ...d, best: e.target.checked })} /> 最爱</label>

@@ -1,6 +1,6 @@
 import Dexie, { Table } from 'dexie';
 import {
-  Game, GameStory, GachaPool, GachaRecord, GachaItem, Card, GameAccount,
+  Game, GameStory, GachaPool, GachaRecord, GachaItem, Card, GameAccount, GameTopup, Wardrobe,
   Star, Material, Schedule, Support, Media,
   Novel, ReadingLog, Note, Excerpt, Character, BookList,
   Merch, Order, OrderItem, Sale, Storage, Wish,
@@ -36,6 +36,8 @@ class CiyuanDB extends Dexie {
   tags!: Table<Tag, string>;
   accounts!: Table<GameAccount, string>;
   photocards!: Table<Photocard, string>;
+  topups!: Table<GameTopup, string>;
+  wardrobe!: Table<Wardrobe, string>;
   history!: Table<HistoryEntry, string>;
 
   constructor() {
@@ -71,6 +73,39 @@ class CiyuanDB extends Dexie {
       photocards: 'id, starId, deletedAt',
       history: 'id, table, recordId, createdAt',
     });
+    this.version(2).stores({
+      settings: 'key',
+      games: 'id, name, status, archived, deletedAt, updatedAt',
+      gameStories: 'id, gameId, deletedAt, createdAt',
+      gachaPools: 'id, gameId, deletedAt',
+      gachaRecords: 'id, gameId, poolId, deletedAt, datetime',
+      gachaItems: 'id, recordId',
+      cards: 'id, gameId, deletedAt',
+      stars: 'id, name, status, deletedAt, updatedAt',
+      materials: 'id, starId, deletedAt',
+      schedules: 'id, starId, deletedAt, datetime',
+      supports: 'id, starId, deletedAt',
+      media: 'id, starId, deletedAt',
+      novels: 'id, title, status, deletedAt, updatedAt',
+      readingLogs: 'id, novelId, deletedAt, datetime',
+      notes: 'id, novelId, deletedAt',
+      excerpts: 'id, novelId, deletedAt',
+      characters: 'id, novelId, deletedAt',
+      bookLists: 'id, deletedAt',
+      merch: 'id, name, ip, status, deletedAt, updatedAt',
+      orders: 'id, deletedAt, orderDate',
+      orderItems: 'id, orderId, merchId',
+      sales: 'id, merchId, deletedAt, date',
+      storage: 'id, merchId, deletedAt',
+      wishes: 'id, deletedAt',
+      reminders: 'id, module, targetId, deletedAt, datetime, status',
+      tags: 'id, module, deletedAt',
+      accounts: 'id, gameId, deletedAt',
+      photocards: 'id, starId, deletedAt',
+      topups: 'id, gameId, deletedAt, date',
+      wardrobe: 'id, gameId, deletedAt',
+      history: 'id, table, recordId, createdAt',
+    });
   }
 }
 
@@ -100,8 +135,11 @@ export async function hardDelete(table: Table<any, any>, id: string) {
 }
 
 export async function seedIfEmpty() {
+  // 已初始化过（或用户曾清空数据）则不重新塞入演示数据，避免清空后又被恢复
+  const seeded = await db.settings.get('seeded');
+  if (seeded) return;
   const count = await db.games.count();
-  if (count > 0) return;
+  if (count > 0) { await db.settings.put({ key: 'seeded', value: true }); return; }
 
   // ===== 游戏 =====
   const g1 = base({ name: '星轨幻想', cover: '🌌', platform: 'iOS/Android', type: '开放世界', status: 'playing', startDate: iso(-120), progress: '主线第三章', tags: ['抽卡', '养成'], note: '', archived: false, pityBase: 90 });
@@ -192,7 +230,7 @@ export async function seedIfEmpty() {
   ]);
 
   // ===== 周边 =====
-  const m1 = base({ name: '星之少女 1/7 手办', cover: '🎎', ip: '星轨幻想', character: '莉莉', type: '手办', pattern: '常规', version: '初版', official: 'official', condition: '全新', qty: 1, unitPrice: 899, totalPrice: 899, acquireDate: iso(-3), platform: '官网', shop: '官方', orderNo: 'A001', logistics: '已到货', status: 'own', location: '展示柜A', tags: ['手办'], note: '' });
+  const m1 = base({ name: '星之少女 1/7 手办', cover: '🧸', ip: '星轨幻想', character: '莉莉', type: '手办', pattern: '常规', version: '初版', official: 'official', condition: '全新', qty: 1, unitPrice: 899, totalPrice: 899, acquireDate: iso(-3), platform: '官网', shop: '官方', orderNo: 'A001', logistics: '已到货', status: 'own', location: '展示柜A', tags: ['手办'], note: '' });
   const m2 = base({ name: '遥遥生写', cover: '📷', ip: '星野遥', character: '星野遥', type: '写真', pattern: '', version: '', official: 'doujin', condition: '全新', qty: 2, unitPrice: 45, totalPrice: 90, acquireDate: iso(-20), platform: '闲鱼', shop: '谷店', orderNo: '', logistics: '已到货', status: 'own', location: '收纳盒1', tags: [], note: '' });
   const m3 = base({ name: 'Lumina 应援棒', cover: '🪄', ip: 'Lumina', character: '', type: '应援', pattern: '', version: '', official: 'official', condition: '全新', qty: 1, unitPrice: 199, totalPrice: 199, acquireDate: iso(-15), platform: '官网', shop: '官方', orderNo: 'B002', logistics: '已到货', status: 'own', location: '演唱会包', tags: [], note: '' });
   const m4 = base({ name: '剑与花 设定集', cover: '📚', ip: '剑与花的物语', character: '', type: '书', pattern: '', version: '', official: 'official', condition: '全新', qty: 1, unitPrice: 128, totalPrice: 128, acquireDate: iso(-40), platform: '当当', shop: '', orderNo: '', logistics: '已到货', status: 'own', location: '书架', tags: [], note: '' });
@@ -234,4 +272,15 @@ export async function seedIfEmpty() {
   await db.settings.put({ key: 'ui', value: { theme: 'system', hideAmount: false, hideSpoiler: false } });
   await db.settings.put({ key: 'modules', value: { games: true, stars: true, novels: true, merch: true } });
   await db.settings.put({ key: 'pin', value: { enabled: false, code: '' } });
+
+  // 演示：氪金记录与衣橱
+  await db.topups.bulkAdd([
+    base({ gameId: g1.id, date: iso(-3), amount: 648, currency: 'CNY', channel: '官网', image: '', note: '月卡+创世结晶' }),
+  ]);
+  await db.wardrobe.bulkAdd([
+    base({ gameId: g1.id, name: '星之少女·限定皮肤', kind: '皮肤', rarity: '5★', owned: true, images: [], note: '活动获取' }),
+    base({ gameId: g2.id, name: '炎之契约·套装', kind: '时装', rarity: 'SSR', owned: false, images: [], note: '' }),
+  ]);
+
+  await db.settings.put({ key: 'seeded', value: true });
 }

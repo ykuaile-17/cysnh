@@ -20,6 +20,7 @@ import Search from '@/pages/Search';
 import Reminders from '@/pages/Reminders';
 import Stats from '@/pages/Stats';
 import Profile from '@/pages/Profile';
+import Calendar from '@/pages/Calendar';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
@@ -66,8 +67,9 @@ function Root() {
           <Route path="/merch" element={<Merch />} />
           <Route path="/merch/:id" element={<MerchDetail />} />
           <Route path="/search" element={<Search />} />
-          <Route path="/reminders" element={<Reminders />} />
-          <Route path="/stats" element={<Stats />} />
+        <Route path="/reminders" element={<Reminders />} />
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/stats" element={<Stats />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Routes>

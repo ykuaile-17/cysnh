@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Trash2, Pencil, ArrowLeft, Dices, BookText, Grid3x3, BarChart3, Settings as SettingsIcon, X, UserCircle2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, ArrowLeft, Dices, BookText, Grid3x3, BarChart3, Settings as SettingsIcon, X, UserCircle2, Shirt, Wallet } from 'lucide-react';
 import { db, uid, softDelete } from '@/lib/db';
-import { Game, GameStory, GachaRecord, GachaItem, Card, GachaPool, GameAccount } from '@/lib/types';
+import { Game, GameStory, GachaRecord, GachaItem, Card, GachaPool, GameAccount, GameTopup, Wardrobe } from '@/lib/types';
 import { logHistory } from '@/lib/history';
 import {
-  GAME_STATUS, STORY_STATUS, STORY_TYPE, POOL_TYPE, RARITY_COLOR,
+  GAME_STATUS, STORY_STATUS, STORY_TYPE, POOL_TYPE, RARITY_COLOR, RARITY_OPTIONS,
   fmtNum, fmtDate, fmtMoney,
 } from '@/lib/format';
 import { gachaStats, monthlyTrend } from '@/lib/stats';
@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
-import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput, ImageField } from '@/components/form';
+import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput, ImageField, MultiImageField } from '@/components/form';
+import { ZoomableImage } from '@/components/ImageViewer';
 import { toast } from 'sonner';
 
 const cn = (...a: any[]) => a.filter(Boolean).join(' ');
@@ -35,13 +36,20 @@ export default function GameDetail() {
   }, [records]) || [];
   const cards = useLiveQuery(() => db.cards.where('gameId').equals(id).filter(c => !c.deletedAt).toArray(), [id]) || [];
   const accounts = useLiveQuery(() => db.accounts.where('gameId').equals(id).filter(a => !a.deletedAt).toArray(), [id]) || [];
+  const topups = useLiveQuery(() => db.topups.where('gameId').equals(id).filter(t => !t.deletedAt).toArray(), [id]) || [];
+  const wardrobe = useLiveQuery(() => db.wardrobe.where('gameId').equals(id).filter(w => !w.deletedAt).toArray(), [id]) || [];
 
   const [storyOpen, setStoryOpen] = useState(false);
   const [gachaOpen, setGachaOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [topupOpen, setTopupOpen] = useState(false);
+  const [wardOpen, setWardOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const [editingStory, setEditingStory] = useState<GameStory | null>(null);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
+  const [editingTopup, setEditingTopup] = useState<GameTopup | null>(null);
+  const [editingWard, setEditingWard] = useState<Wardrobe | null>(null);
   const [editingAcct, setEditingAcct] = useState<GameAccount | null>(null);
 
   useEffect(() => {
@@ -60,6 +68,8 @@ export default function GameDetail() {
   });
   const gs = gachaStats(records, items);
   const outCount = items.filter(i => i.isOut).length;
+  const storyMap = Object.fromEntries(stories.map(s => [s.id, s]));
+  const acctMap = Object.fromEntries(accounts.map(a => [a.id, a]));
 
   return (
     <div>
@@ -77,6 +87,8 @@ export default function GameDetail() {
           <TabsTrigger value="gacha">抽卡</TabsTrigger>
           <TabsTrigger value="gallery">图鉴</TabsTrigger>
           <TabsTrigger value="account">账号</TabsTrigger>
+          <TabsTrigger value="topup">氪金</TabsTrigger>
+          <TabsTrigger value="wardrobe">衣柜</TabsTrigger>
           <TabsTrigger value="stats">统计</TabsTrigger>
           <TabsTrigger value="settings">设置</TabsTrigger>
         </TabsList>
@@ -112,6 +124,13 @@ export default function GameDetail() {
                 <Pill>{STORY_TYPE[s.type]}</Pill>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{s.chapter} · {STORY_STATUS[s.status]}{s.rating ? ` · ${'★'.repeat(s.rating)}` : ''}</p>
+              {s.images && s.images.length > 0 && (
+                <div className="mt-2 flex gap-1.5 overflow-x-auto">
+                  {s.images.map((img, i) => (
+                    <ZoomableImage key={i} src={img} className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-muted/40" imgClassName="h-16 w-16 object-cover" />
+                  ))}
+                </div>
+              )}
               {s.spoiler && <span className="mt-1 inline-block rounded bg-destructive/10 px-1.5 text-[11px] text-destructive">含剧透</span>}
             </div>
           ))}
@@ -142,6 +161,13 @@ export default function GameDetail() {
                         </span>
                       ))}
                     </div>
+                    {r.images && r.images.length > 0 && (
+                      <div className="mt-2 flex gap-1.5 overflow-x-auto">
+                        {r.images.map((img, i) => (
+                          <ZoomableImage key={i} src={img} className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-muted/40" imgClassName="h-16 w-16 object-cover" />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -151,7 +177,8 @@ export default function GameDetail() {
 
         {/* 图鉴 */}
         <TabsContent value="gallery" className="flex flex-col gap-2">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={() => setBatchOpen(true)}><Plus className="size-4" /> 批量添加</Button>
             <Button size="sm" onClick={() => { setEditingCard(null); setCardOpen(true); }}><Plus className="size-4" /> 添加卡面</Button>
           </div>
           {cards.length === 0 ? <Empty icon="🃏" text="图鉴还是空的" /> : (
@@ -159,13 +186,21 @@ export default function GameDetail() {
               {cards.map(c => (
                 <div key={c.id} onClick={() => { setEditingCard(c); setCardOpen(true); }}
                   className={cn('rounded-xl border p-3', c.owned ? 'bg-card' : 'bg-muted/40 opacity-70')}>
-                  {c.coverImg && <img src={c.coverImg} className="mb-2 h-20 w-full rounded object-cover" alt="" />}
+                  {c.images && c.images.length ? (
+                    <ZoomableImage src={c.images[0]} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />
+                  ) : c.coverImg ? (
+                    <ZoomableImage src={c.coverImg} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />
+                  ) : null}
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-xs" style={{ color: RARITY_COLOR[c.rarity] }}>{c.rarity}</span>
+                    <span className="truncate font-medium">{c.name}</span>
+                    <span className="text-xs" style={{ color: RARITY_COLOR[c.rarity] || '#666' }}>{c.rarity}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">{c.character}</p>
-                  <Pill color={c.owned ? '#22c55e' : '#94a3b8'}>{c.owned ? '已拥有' : '未拥有'}</Pill>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <Pill color={c.owned ? '#22c55e' : '#94a3b8'}>{c.owned ? '已拥有' : '未拥有'}</Pill>
+                    {c.storyId && storyMap[c.storyId] && <Pill color="#7c5cff">联动：{storyMap[c.storyId].title}</Pill>}
+                    {c.accountId && acctMap[c.accountId] && <Pill color="#f59e0b">@{acctMap[c.accountId].name}</Pill>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -184,6 +219,47 @@ export default function GameDetail() {
                 <span className="text-xs text-muted-foreground">{a.server}</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">UID：{a.uid}{a.role ? ` · ${a.role}` : ''}</p>
+              {a.note && <p className="mt-1 text-xs text-muted-foreground">备注：{a.note}</p>}
+            </div>
+          ))}
+        </TabsContent>
+
+        {/* 氪金 */}
+        <TabsContent value="topup" className="flex flex-col gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <StatCard label="累计氪金" value={fmtMoney(topups.reduce((s, t) => s + (t.amount || 0), 0))} accent="text-destructive" />
+            <StatCard label="次数" value={topups.length} />
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => { setEditingTopup(null); setTopupOpen(true); }}><Plus className="size-4" /> 记氪金</Button>
+          </div>
+          {topups.length === 0 ? <Empty icon="💎" text="还没有氪金记录" /> : [...topups].sort((a, b) => +new Date(b.date) - +new Date(a.date)).map(t => (
+            <div key={t.id} onClick={() => { setEditingTopup(t); setTopupOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium">{fmtMoney(t.amount)}</span>
+                <span className="text-muted-foreground">{fmtDate(t.date)}</span>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{t.channel || '未知渠道'}{t.note ? ' · ' + t.note : ''}</p>
+              {t.image && <div className="mt-2"><ZoomableImage src={t.image} className="block h-20 w-20 overflow-hidden rounded-lg border bg-muted/40" imgClassName="h-20 w-20 object-cover" /></div>}
+            </div>
+          ))}
+        </TabsContent>
+
+        {/* 衣柜 */}
+        <TabsContent value="wardrobe" className="flex flex-col gap-2">
+          <div className="flex justify-end">
+            <Button size="sm" onClick={() => { setEditingWard(null); setWardOpen(true); }}><Plus className="size-4" /> 加衣柜</Button>
+          </div>
+          {wardrobe.length === 0 ? <Empty icon="👗" text="还没有衣橱收集" /> : wardrobe.map(w => (
+            <div key={w.id} onClick={() => { setEditingWard(w); setWardOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+              {w.images && w.images.length > 0 && (
+                <ZoomableImage src={w.images[0]} className="mb-2 block h-20 w-full overflow-hidden rounded" imgClassName="h-20 w-full object-cover" />
+              )}
+              <div className="flex items-center justify-between">
+                <span className="font-medium truncate">{w.name}</span>
+                <span className="text-xs" style={{ color: RARITY_COLOR[w.rarity] || '#666' }}>{w.rarity}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">{w.kind} · {w.owned ? '已拥有' : '未拥有'}</p>
             </div>
           ))}
         </TabsContent>
@@ -214,7 +290,10 @@ export default function GameDetail() {
 
       <StoryEditor open={storyOpen} onOpenChange={setStoryOpen} gameId={id} story={editingStory} />
       <GachaEditor open={gachaOpen} onOpenChange={setGachaOpen} gameId={id} pools={pools} />
-      <CardEditor open={cardOpen} onOpenChange={setCardOpen} gameId={id} card={editingCard} />
+      <CardEditor open={cardOpen} onOpenChange={setCardOpen} gameId={id} card={editingCard} stories={stories} accounts={accounts} />
+      <BatchCardModal open={batchOpen} onOpenChange={setBatchOpen} gameId={id} />
+      <TopupEditor open={topupOpen} onOpenChange={setTopupOpen} gameId={id} topup={editingTopup} />
+      <WardrobeEditor open={wardOpen} onOpenChange={setWardOpen} gameId={id} wardrobe={editingWard} />
       <AccountEditor open={acctOpen} onOpenChange={setAcctOpen} gameId={id} account={editingAcct} />
     </div>
   );
@@ -246,7 +325,7 @@ function StoryEditor({ open, onOpenChange, gameId, story }: {
   useEffect(() => {
     if (open) setD(story ? { ...story } : {
       type: 'main', title: '', chapter: '', status: 'unwatch', startDate: '', endDate: '',
-      progress: '', summary: '', feeling: '', rating: 0, spoiler: false, tags: [], note: '',
+      progress: '', summary: '', feeling: '', rating: 0, spoiler: false, tags: [], note: '', images: [],
     });
   }, [open, story]);
   const save = async () => {
@@ -256,7 +335,7 @@ function StoryEditor({ open, onOpenChange, gameId, story }: {
     else await db.gameStories.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
       type: (d.type as any) || 'main', title: d.title!, chapter: d.chapter || '', startDate: d.startDate || '',
       endDate: d.endDate || '', status: (d.status as any) || 'unwatch', progress: d.progress || '', summary: d.summary || '',
-      feeling: d.feeling || '', rating: d.rating || 0, spoiler: !!d.spoiler, tags: d.tags || [], note: d.note || '' });
+      feeling: d.feeling || '', rating: d.rating || 0, spoiler: !!d.spoiler, tags: d.tags || [], note: d.note || '', images: d.images || [] });
     toast.success('已保存'); onOpenChange(false);
   };
   return (
@@ -274,6 +353,7 @@ function StoryEditor({ open, onOpenChange, gameId, story }: {
       <NumInput label="评分(1-5)" value={d.rating ?? 0} onChange={v => setD({ ...d, rating: v })} />
       <AreaInput label="剧情梗概" value={d.summary || ''} onChange={v => setD({ ...d, summary: v })} />
       <AreaInput label="个人感想" value={d.feeling || ''} onChange={v => setD({ ...d, feeling: v })} />
+      <MultiImageField label="剧情截图（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.spoiler} onChange={e => setD({ ...d, spoiler: e.target.checked })} /> 含剧透（折叠）</label>
       <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
@@ -289,6 +369,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
   const [costType, setCostType] = useState('');
   const [costAmount, setCostAmount] = useState(0);
   const [note, setNote] = useState('');
+  const [images, setImages] = useState<string[]>([]);
   const [rows, setRows] = useState<{ cardName: string; character: string; rarity: string; isUp: boolean; isOut: boolean; isMiss: boolean; pullIndex: number }[]>([]);
   const [showNewPool, setShowNewPool] = useState(false);
   const [newPoolName, setNewPoolName] = useState('');
@@ -296,7 +377,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
   const [ocrText, setOcrText] = useState('');
   const [ocrBusy, setOcrBusy] = useState(false);
 
-  useEffect(() => { if (open) { setPoolId(pools[0]?.id || ''); setRows([]); setPulls(10); setCostAmount(0); setCostType(''); setNote(''); setShowNewPool(false); setNewPoolName(''); setOcrText(''); } }, [open, pools]);
+  useEffect(() => { if (open) { setPoolId(pools[0]?.id || ''); setRows([]); setPulls(10); setCostAmount(0); setCostType(''); setNote(''); setImages([]); setShowNewPool(false); setNewPoolName(''); setOcrText(''); } }, [open, pools]);
 
   const createPool = async () => {
     if (!newPoolName.trim()) { toast.error('请填写卡池名'); return; }
@@ -335,7 +416,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
     if (pulls <= 0) { toast.error('抽数必须大于0'); return; }
     const now = Date.now();
     const recId = uid();
-    const rec = { id: recId, gameId, poolId: poolId || null, datetime, pulls, costType, costAmount, note, createdAt: now, updatedAt: now, deletedAt: null };
+    const rec: any = { id: recId, gameId, poolId: poolId || null, datetime, pulls, costType, costAmount, note, images, createdAt: now, updatedAt: now, deletedAt: null };
     await db.gachaRecords.add(rec);
     if (rows.length) {
       await db.gachaItems.bulkAdd(rows.map(r => ({ id: uid(), recordId: recId, cardName: r.cardName, character: r.character, rarity: r.rarity, isUp: r.isUp, isOut: r.isOut, pullIndex: r.pullIndex, isGuaranteed: false, isMiss: r.isMiss })));
@@ -366,6 +447,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
         <NumInput label="消耗数量" value={costAmount} onChange={setCostAmount} />
       </div>
       <AreaInput label="备注" value={note} onChange={setNote} />
+      <MultiImageField label="抽卡截图（可多张）" value={images} onChange={setImages} max={6} />
 
       <div className="rounded-lg border bg-muted/30 p-2">
         <Button type="button" variant="outline" size="sm" className="w-full" onClick={runOcr} disabled={ocrBusy}>
@@ -384,7 +466,7 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
             <div className="flex items-center gap-1">
               <Input value={r.cardName} onChange={e => updRow(i, { cardName: e.target.value })} placeholder="卡面名" className="h-8 flex-1 text-sm" />
               <select value={r.rarity} onChange={e => updRow(i, { rarity: e.target.value })} className="h-8 rounded border bg-transparent px-1 text-sm">
-                {['SSR', 'SR', 'R', 'UR', 'N'].map(x => <option key={x} value={x}>{x}</option>)}
+                {RARITY_OPTIONS.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}
               </select>
               <button onClick={() => setRows(rows.filter((_, idx) => idx !== i))} className="text-destructive"><X className="size-4" /></button>
             </div>
@@ -400,21 +482,23 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
   );
 }
 
-function CardEditor({ open, onOpenChange, gameId, card }: {
-  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; card: Card | null;
+function CardEditor({ open, onOpenChange, gameId, card, stories, accounts }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; card: Card | null; stories: GameStory[]; accounts: GameAccount[];
 }) {
   const [d, setD] = useState<Partial<Card>>({});
   useEffect(() => {
     if (!open) return;
     if (card) setD({ ...card });
-    else setD({ name: '', character: '', rarity: 'SSR', owned: true, obtainWay: '', obtainDate: '', coverImg: undefined });
+    else setD({ name: '', character: '', rarity: 'SSR', owned: true, obtainWay: '', obtainDate: '', images: [], coverImg: undefined, storyId: null, accountId: null, accountNote: '' });
   }, [open, card]);
   const save = async () => {
     if (!d.name?.trim()) { toast.error('请填写卡面名'); return; }
     const now = Date.now();
-    if (card) await db.cards.update(card.id, { ...d, updatedAt: now });
+    const payload: any = { ...d, images: d.images && d.images.length ? d.images : (d.coverImg ? [d.coverImg] : []), updatedAt: now };
+    if (card) await db.cards.update(card.id, payload);
     else await db.cards.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
-      name: d.name!, character: d.character || '', rarity: d.rarity || 'SSR', owned: !!d.owned, obtainWay: d.obtainWay || '', obtainDate: d.obtainDate || '', coverImg: d.coverImg });
+      name: d.name!, character: d.character || '', rarity: d.rarity || 'SSR', owned: !!d.owned, obtainWay: d.obtainWay || '', obtainDate: d.obtainDate || '',
+      images: payload.images, coverImg: payload.images[0], storyId: d.storyId ?? null, accountId: d.accountId ?? null, accountNote: d.accountNote || '' });
     toast.success('已保存'); onOpenChange(false);
   };
   return (
@@ -422,11 +506,101 @@ function CardEditor({ open, onOpenChange, gameId, card }: {
       <TextInput label="卡面名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
       <TextInput label="角色" value={d.character || ''} onChange={v => setD({ ...d, character: v })} />
       <SelectField label="稀有度" value={d.rarity || 'SSR'} onChange={v => setD({ ...d, rarity: v })}
-        options={['SSR', 'UR', 'SR', 'R', 'N'].map(x => ({ value: x, label: x }))} />
-      <ImageField label="卡面图片" value={d.coverImg} onChange={v => setD({ ...d, coverImg: v })} />
+        options={RARITY_OPTIONS} />
+      <MultiImageField label="卡面图片（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} max={9} />
+      <SelectField label="联动剧情" value={d.storyId || ''} onChange={v => setD({ ...d, storyId: v || null })}
+        options={[{ value: '', label: '不关联' }, ...stories.map(s => ({ value: s.id, label: s.title }))]} />
+      <SelectField label="所属账号" value={d.accountId || ''} onChange={v => setD({ ...d, accountId: v || null })}
+        options={[{ value: '', label: '不指定' }, ...accounts.map(a => ({ value: a.id, label: a.name }))]} />
+      {accounts.length > 0 && (
+        <TextInput label="账号备注（如：该卡由某号拥有）" value={d.accountNote || ''} onChange={v => setD({ ...d, accountNote: v })} />
+      )}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
       <TextInput label="获取方式" value={d.obtainWay || ''} onChange={v => setD({ ...d, obtainWay: v })} />
       <DateInput label="获得日期" value={d.obtainDate || ''} onChange={v => setD({ ...d, obtainDate: v })} />
+    </EditorModal>
+  );
+}
+
+function BatchCardModal({ open, onOpenChange, gameId }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string;
+}) {
+  const [text, setText] = useState('');
+  const save = async () => {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) { toast.error('请每行填写一张卡面'); return; }
+    const now = Date.now();
+    const created = lines.map(line => {
+      // 支持「卡名-角色 / 卡名，角色 / 卡名 角色」分隔
+      const parts = line.split(/[-,，/、\s]+/).map(p => p.trim()).filter(Boolean);
+      const name = parts[0] || line;
+      const character = parts.slice(1).join(' ') || '';
+      return { id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+        name, character, rarity: '', owned: false, obtainWay: '', obtainDate: '', images: [], coverImg: undefined, storyId: null, accountId: null, accountNote: '' };
+    });
+    await db.cards.bulkAdd(created);
+    toast.success(`已添加 ${created.length} 张卡面，可点进去补全信息`);
+    setText(''); onOpenChange(false);
+  };
+  return (
+    <EditorModal title="批量添加卡面" open={open} onOpenChange={onOpenChange} onSave={save}>
+      <p className="text-xs text-muted-foreground">每行一张卡面，可用「- / ，、空格」分隔卡名与角色，例如：<br />星之少女-莉莉<br />炎之骑士 凯</p>
+      <AreaInput label="卡面清单" value={text} onChange={setText} placeholder={'星之少女\n炎之骑士-凯\n深渊之王'} rows={6} />
+    </EditorModal>
+  );
+}
+
+function TopupEditor({ open, onOpenChange, gameId, topup }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; topup: GameTopup | null;
+}) {
+  const [d, setD] = useState<Partial<GameTopup>>({});
+  useEffect(() => {
+    if (open) setD(topup ? { ...topup } : { date: new Date().toISOString().slice(0, 10), amount: 0, currency: 'CNY', channel: '', image: '', note: '' });
+  }, [open, topup]);
+  const save = async () => {
+    const now = Date.now();
+    if (topup) await db.topups.update(topup.id, { ...d, updatedAt: now });
+    else await db.topups.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+      date: d.date || '', amount: d.amount || 0, currency: d.currency || 'CNY', channel: d.channel || '', image: d.image || '', note: d.note || '' });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={topup ? '编辑氪金' : '记氪金'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <DateInput label="日期" value={d.date || ''} onChange={v => setD({ ...d, date: v })} />
+      <div className="grid grid-cols-2 gap-3">
+        <NumInput label="金额" value={d.amount ?? 0} onChange={v => setD({ ...d, amount: v })} />
+        <TextInput label="货币" value={d.currency || ''} onChange={v => setD({ ...d, currency: v })} placeholder="CNY" />
+      </div>
+      <TextInput label="渠道" value={d.channel || ''} onChange={v => setD({ ...d, channel: v })} placeholder="官网/App Store/支付宝" />
+      <ImageField label="充值截图" value={d.image} onChange={v => setD({ ...d, image: v })} />
+      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
+    </EditorModal>
+  );
+}
+
+function WardrobeEditor({ open, onOpenChange, gameId, wardrobe }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; wardrobe: Wardrobe | null;
+}) {
+  const [d, setD] = useState<Partial<Wardrobe>>({});
+  useEffect(() => {
+    if (open) setD(wardrobe ? { ...wardrobe } : { name: '', kind: '皮肤', rarity: 'SSR', owned: true, images: [], note: '' });
+  }, [open, wardrobe]);
+  const save = async () => {
+    if (!d.name?.trim()) { toast.error('请填写名称'); return; }
+    const now = Date.now();
+    if (wardrobe) await db.wardrobe.update(wardrobe.id, { ...d, updatedAt: now });
+    else await db.wardrobe.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+      name: d.name!, kind: d.kind || '皮肤', rarity: d.rarity || '', owned: !!d.owned, images: d.images || [], note: d.note || '' });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={wardrobe ? '编辑衣柜' : '加衣柜'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <TextInput label="名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
+      <TextInput label="类型" value={d.kind || ''} onChange={v => setD({ ...d, kind: v })} placeholder="皮肤/时装/装备/家具" />
+      <SelectField label="稀有度" value={d.rarity || 'SSR'} onChange={v => setD({ ...d, rarity: v })} options={RARITY_OPTIONS} />
+      <MultiImageField label="图片（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} max={9} />
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
+      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
   );
 }

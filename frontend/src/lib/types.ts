@@ -87,6 +87,7 @@ export interface GameStory extends BaseEntity {
   spoiler: boolean;
   tags: string[];
   note: string;
+  images?: string[]; // 剧情截图（多张）
 }
 
 export interface GachaPool extends BaseEntity {
@@ -105,6 +106,7 @@ export interface GachaRecord extends BaseEntity {
   costType: string;
   costAmount: number;
   note: string;
+  images?: string[]; // 抽卡截图（多张）
 }
 
 export interface GachaItem {
@@ -123,12 +125,16 @@ export interface GachaItem {
 export interface Card extends BaseEntity {
   gameId: ID;
   name: string;
-  coverImg?: string;
+  coverImg?: string; // 主图（兼容旧数据，取 images[0]）
+  images?: string[]; // 卡面图片（多张）
   character: string;
   rarity: string;
   owned: boolean;
   obtainWay: string;
   obtainDate: ISODate;
+  storyId?: ID | null; // 联动剧情
+  accountId?: ID | null; // 所属账号
+  accountNote?: string; // 账号备注（如：该卡由某号拥有）
 }
 
 // ============ 追星 ============
@@ -185,6 +191,7 @@ export interface Material extends BaseEntity {
   member: string;
   tags: string[];
   note: string;
+  images?: string[]; // 物料截图（多张）
 }
 
 export type ScheduleType =
@@ -325,7 +332,8 @@ export interface Excerpt extends BaseEntity {
   source: string;
   type: string;
   date: ISODate;
-  feeling: string;
+  feeling: string; // 感想
+  thought: string; // 碎碎念
   tags: string[];
   mood: string;
   favorite: boolean;
@@ -539,6 +547,28 @@ export interface GameAccount extends BaseEntity {
   note: string;
 }
 
+// 游戏氪金记录（充值/消费）
+export interface GameTopup extends BaseEntity {
+  gameId: ID;
+  date: ISODate;
+  amount: number; // 金额（元）
+  currency: string; // 货币
+  channel: string; // 渠道：App Store / 官网 / 支付宝 ...
+  image?: string; // 充值截图
+  note: string;
+}
+
+// 游戏衣橱（时装/皮肤/装备收集）
+export interface Wardrobe extends BaseEntity {
+  gameId: ID;
+  name: string;
+  kind: string; // 类型：时装/皮肤/装备/家具...
+  rarity: string;
+  owned: boolean;
+  images?: string[];
+  note: string;
+}
+
 // ============ 小卡 / 专辑图鉴 ============
 export type PhotocardKind = 'album' | 'single' | 'event' | 'preorder' | 'goods' | 'other';
 
@@ -547,7 +577,7 @@ export interface Photocard extends BaseEntity {
   album: string; // 专辑/批次名
   name: string; // 卡名
   kind: PhotocardKind;
-  rarity: string; // 如 R/SR/SSR
+  rarity: string; // 可选，追星小卡可不填稀有度
   total: number; // 该卡总拥有数（含重复）
   owned: number; // 不同款拥有数
   dup: number; // 重复张数

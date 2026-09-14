@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, Bell, BarChart3, Plus, Home, Gamepad2, Star, BookOpen, Package, User } from 'lucide-react';
+import { Search, Bell, BarChart3, Plus, Home, Gamepad2, Star, BookOpen, Package, User, CalendarClock } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { useApp } from '@/lib/app-store';
@@ -43,6 +43,9 @@ function TopBar() {
         <Button variant="ghost" size="icon" onClick={() => navigate('/stats')} aria-label="统计">
           <BarChart3 className="size-5" />
         </Button>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/calendar')} aria-label="卡池日历">
+          <CalendarClock className="size-5" />
+        </Button>
       </div>
     </header>
   );
@@ -61,7 +64,7 @@ function QuickAdd() {
     { label: '添加小说', icon: '📚', show: modules.novels, go: '/novels?add=novel' },
     { label: '记阅读', icon: '📖', show: modules.novels, go: '/novels?add=reading' },
     { label: '记摘抄', icon: '✏️', show: modules.novels, go: '/novels?add=excerpt' },
-    { label: '添加周边', icon: '🎎', show: modules.merch, go: '/merch?add=merch' },
+    { label: '添加周边', icon: '🧸', show: modules.merch, go: '/merch?add=merch' },
     { label: '记购买', icon: '🛒', show: modules.merch, go: '/merch?add=order' },
     { label: '记出物', icon: '💱', show: modules.merch, go: '/merch?add=sale' },
   ];

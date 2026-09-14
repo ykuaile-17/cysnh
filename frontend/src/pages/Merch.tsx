@@ -9,6 +9,7 @@ import { MERCH_STATUS, MERCH_CATEGORY, fmtMoney } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
+import { ZoomableImage } from '@/components/ImageViewer';
 import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, MultiImageField } from '@/components/form';
 import { toast } from 'sonner';
 
@@ -18,7 +19,7 @@ function MerchEditor({ merch, open, onOpenChange }: { merch: Merch | null; open:
   const [d, setD] = useState<Partial<Merch>>({});
   useEffect(() => {
     if (open) setD(merch ? { ...merch } : {
-      name: '', cover: '🎎', ip: '', character: '', type: '手办', category: 'other', pattern: '', version: '', official: 'official',
+      name: '', cover: '🧸', ip: '', character: '', type: '手办', category: 'other', pattern: '', version: '', official: 'official',
       condition: '全新', qty: 1, unitPrice: 0, totalPrice: 0, acquireDate: new Date().toISOString().slice(0, 10),
       platform: '', shop: '', orderNo: '', logistics: '', status: 'own', location: '', tags: [], note: '', images: [],
     });
@@ -33,7 +34,7 @@ function MerchEditor({ merch, open, onOpenChange }: { merch: Merch | null; open:
     else {
       const newId = uid();
       const p = { id: newId, createdAt: now, updatedAt: now, deletedAt: null,
-        name: d.name!, cover: d.cover || '🎎', coverImg, images, category: (d.category as any) || 'other', ip: d.ip || '', character: d.character || '', type: d.type || '手办',
+        name: d.name!, cover: d.cover || '🧸', coverImg, images, category: (d.category as any) || 'other', ip: d.ip || '', character: d.character || '', type: d.type || '手办',
         pattern: d.pattern || '', version: d.version || '', official: (d.official as any) || 'official', condition: d.condition || '全新',
         qty: d.qty || 1, unitPrice: d.unitPrice ?? 0, totalPrice: total, acquireDate: d.acquireDate || '', platform: d.platform || '',
         shop: d.shop || '', orderNo: d.orderNo || '', logistics: d.logistics || '', status: (d.status as any) || 'own', location: d.location || '', tags: d.tags || [], note: d.note || '' };
@@ -123,15 +124,15 @@ export default function Merch() {
         ))}
       </div>
 
-      {filtered.length === 0 ? <Empty icon="🎎" text="还没有周边，点右上角添加" /> : (
+      {filtered.length === 0 ? <Empty icon="🧸" text="还没有周边，点右上角添加" /> : (
         <div className="grid grid-cols-2 gap-3 px-3">
           {filtered.map(m => (
             <div key={m.id} onClick={() => navigate(`/merch/${m.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
               {(m.images && m.images[0]) || m.coverImg ? (
-                <img src={(m.images && m.images[0]) || m.coverImg} className="h-24 w-full rounded-lg object-cover" alt="" />
+                <ZoomableImage src={(m.images && m.images[0]) || m.coverImg || ''} className="block h-24 w-full overflow-hidden rounded-lg" imgClassName="h-24 w-full object-cover" />
               ) : (
-                <span className="text-3xl">{m.cover || '🎎'}</span>
+                <span className="text-3xl">{m.cover || '🧸'}</span>
               )}
               <p className="truncate font-medium">{m.name}</p>
               <p className="truncate text-xs text-muted-foreground">{m.ip}{m.character ? ' · ' + m.character : ''}</p>

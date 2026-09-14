@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Check, Bell } from 'lucide-react';
-import { db, uid } from '@/lib/db';
+import { Plus, Check, Bell, Pencil, Trash2, CalendarClock } from 'lucide-react';
+import { db, uid, softDelete } from '@/lib/db';
 import { Reminder, ReminderModule, ReminderType } from '@/lib/types';
 import { REMINDER_TYPE_LABEL, fmtDateTime, countdownText, daysUntil } from '@/lib/format';
 import { Button } from '@/components/ui/button';
@@ -17,19 +17,26 @@ const MODULE_OPTS: { value: ReminderModule; label: string }[] = [
 ];
 const TYPE_OPTS = Object.entries(REMINDER_TYPE_LABEL).map(([value, label]) => ({ value, label }));
 
-function ReminderEditor({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+function ReminderEditor({ open, onOpenChange, reminder }: { open: boolean; onOpenChange: (v: boolean) => void; reminder?: Reminder | null }) {
   const [d, setD] = useState<any>({});
+  useEffect(() => { if (open) setD(reminder ? { ...reminder } : {}); }, [open, reminder]);
   const set = (p: any) => setD({ ...d, ...p });
   const save = async () => {
     if (!d.title?.trim()) { toast.error('请填写提醒标题'); return; }
     const now = Date.now();
-    await db.reminders.add({ id: uid(), createdAt: now, updatedAt: now, deletedAt: null,
-      title: d.title, module: d.module || 'general', targetId: null, type: d.type || 'anniversary',
-      datetime: d.datetime || '', repeat: d.repeat || 'none', advance: d.advance ?? 0, priority: d.priority || '中', status: 'pending', note: d.note || '' });
-    toast.success('已添加提醒'); onOpenChange(false);
+    if (reminder) {
+      await db.reminders.update(reminder.id, { ...d, updatedAt: now });
+      toast.success('已修改');
+    } else {
+      await db.reminders.add({ id: uid(), createdAt: now, updatedAt: now, deletedAt: null,
+        title: d.title, module: d.module || 'general', targetId: null, type: d.type || 'anniversary',
+        datetime: d.datetime || '', repeat: d.repeat || 'none', advance: d.advance ?? 0, priority: d.priority || '中', status: 'pending', note: d.note || '' });
+      toast.success('已添加提醒');
+    }
+    onOpenChange(false);
   };
   return (
-    <EditorModal title="新建提醒" open={open} onOpenChange={onOpenChange} onSave={save}>
+    <EditorModal title={reminder ? '编辑提醒' : '新建提醒'} open={open} onOpenChange={onOpenChange} onSave={save}>
       <TextInput label="标题" value={d.title || ''} onChange={v => set({ title: v })} placeholder="如：星轨幻想 卡池结束" />
       <div className="grid grid-cols-2 gap-3">
         <SelectField label="模块" value={d.module || 'general'} onChange={v => set({ module: v })} options={MODULE_OPTS} />
@@ -45,6 +52,7 @@ function ReminderEditor({ open, onOpenChange }: { open: boolean; onOpenChange: (
 export default function Reminders() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Reminder | null>(null);
 
   const reminders = useLiveQuery(() => db.reminders.filter(r => !r.deletedAt).toArray(), [], []) || [];
   const today = new Date().toDateString();
@@ -58,13 +66,15 @@ export default function Reminders() {
   };
 
   const markDone = async (r: Reminder) => { await db.reminders.update(r.id, { status: 'done', updatedAt: Date.now() }); toast('已完成'); };
+  const del = async (r: Reminder) => { if (!confirm('确定删除该提醒？')) return; await softDelete(db.reminders, r.id); toast('已删除'); };
+  const openEdit = (r: Reminder) => { setEditing(r); setOpen(true); };
 
   const renderList = (list: Reminder[]) => {
     if (list.length === 0) return <Empty icon="🔔" text="这里空空如也" />;
     return (
       <div className="flex flex-col gap-2 px-3">
         {[...list].sort((a, b) => +new Date(a.datetime) - +new Date(b.datetime)).map(r => (
-          <div key={r.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
+          <div key={r.id} className="flex items-center gap-2 rounded-xl border bg-card p-3">
             <button onClick={() => markDone(r)} className={`flex size-7 shrink-0 items-center justify-center rounded-full border ${r.status === 'done' ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-muted-foreground/40'}`}>
               {r.status === 'done' && <Check className="size-4" />}
             </button>
@@ -73,6 +83,8 @@ export default function Reminders() {
               <p className="text-xs text-muted-foreground">{fmtDateTime(r.datetime)} · {REMINDER_TYPE_LABEL[r.type]}</p>
             </div>
             {r.status === 'pending' && <span className="shrink-0 text-xs font-medium text-primary">{countdownText(r.datetime)}</span>}
+            <button onClick={() => openEdit(r)} className="shrink-0 rounded-lg p-1 text-muted-foreground active:scale-95" aria-label="编辑"><Pencil className="size-4" /></button>
+            <button onClick={() => del(r)} className="shrink-0 rounded-lg p-1 text-destructive active:scale-95" aria-label="删除"><Trash2 className="size-4" /></button>
           </div>
         ))}
       </div>
@@ -81,7 +93,12 @@ export default function Reminders() {
 
   return (
     <div>
-      <PageHeader title="提醒" right={<Button size="sm" onClick={() => setOpen(true)}><Plus className="size-4" /> 新建</Button>} />
+      <PageHeader title="提醒" right={<Button size="sm" onClick={() => { setEditing(null); setOpen(true); }}><Plus className="size-4" /> 新建</Button>} />
+      <div className="px-3 pt-2">
+        <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/calendar')}>
+          <CalendarClock className="size-4" /> 查看卡池 / 版本日历
+        </Button>
+      </div>
       <Tabs defaultValue="all" className="px-3 pt-2">
         <TabsList className="w-full">
           <TabsTrigger value="all">全部</TabsTrigger>
@@ -95,7 +112,7 @@ export default function Reminders() {
         ))}
       </Tabs>
       <div className="h-4" />
-      <ReminderEditor open={open} onOpenChange={setOpen} />
+      <ReminderEditor open={open} onOpenChange={setOpen} reminder={editing} />
     </div>
   );
 }

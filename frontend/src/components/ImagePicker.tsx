@@ -1,6 +1,7 @@
 import { ImagePlus, X } from 'lucide-react';
 import { pickImage } from '@/lib/images';
 import { toast } from 'sonner';
+import { ZoomableImage } from '@/components/ImageViewer';
 
 export function ImagePicker({
   value, onChange, label = '图片',
@@ -15,7 +16,7 @@ export function ImagePicker({
       <div className="flex items-center gap-3">
         <div className="relative h-20 w-20 overflow-hidden rounded-xl border bg-muted/40">
           {value ? (
-            <img src={value} alt="" className="h-full w-full object-cover" />
+            <ZoomableImage src={value} className="h-full w-full" imgClassName="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground">
               <ImagePlus className="size-6" />
@@ -45,7 +46,7 @@ export function ImagePicker({
   );
 }
 
-// 多图选择器：支持一次选择多张，可删除、可继续添加
+// 多图选择器：支持一次选择多张，可删除、可继续添加，缩略图可点开大图
 export function MultiImagePicker({
   value = [], onChange, label = '图片', max,
 }: {
@@ -64,7 +65,7 @@ export function MultiImagePicker({
       <div className="flex flex-wrap gap-2">
         {value.map((img, i) => (
           <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl border bg-muted/40">
-            <img src={img} alt="" className="h-full w-full object-cover" />
+            <ZoomableImage src={img} className="h-full w-full" imgClassName="h-full w-full object-cover" />
             <button
               type="button"
               className="absolute right-0.5 top-0.5 rounded-full bg-black/55 p-0.5 text-white active:scale-90"

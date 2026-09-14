@@ -115,5 +115,18 @@ export const REMINDER_TYPE_LABEL: Record<string, string> = {
 };
 
 export const RARITY_COLOR: Record<string, string> = {
-  SSR: '#f59e0b', SR: '#a855f7', R: '#3b82f6', UR: '#ef4444', N: '#94a3b8',
+  '6★': '#ff4d6d', '5★': '#ff9f1c', '4★': '#c77dff', '3★': '#4cc9f0', '2★': '#90be6d', '1★': '#adb5b8',
+  SSR: '#f59e0b', UR: '#ef4444', SR: '#a855f7', R: '#3b82f6', N: '#94a3b8',
+  '红卡': '#ef4444', '黄卡': '#eab308', '绿卡': '#22c55e', '普卡': '#94a3b8',
 };
+
+// 稀有度下拉选项（含星级、红黄绿卡等）
+export const RARITY_OPTIONS: { value: string; label: string }[] = [
+  { value: '6★', label: '6★' }, { value: '5★', label: '5★' }, { value: '4★', label: '4★' },
+  { value: '3★', label: '3★' }, { value: '2★', label: '2★' }, { value: '1★', label: '1★' },
+  { value: 'UR', label: 'UR' }, { value: 'SSR', label: 'SSR' }, { value: 'SR', label: 'SR' },
+  { value: 'R', label: 'R' }, { value: 'N', label: 'N' },
+  { value: '红卡', label: '红卡' }, { value: '黄卡', label: '黄卡' }, { value: '绿卡', label: '绿卡' }, { value: '普卡', label: '普卡' },
+];
+
+export const MERCH_EMOJI = '🧸'; // 周边模块图标（替换原 🎎 两个小人）

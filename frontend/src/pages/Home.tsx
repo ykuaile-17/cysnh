@@ -61,7 +61,7 @@ export default function Home() {
     ...data.gachaRecords.map(r => ({ kind: '抽卡', icon: '🎲', text: `抽了 ${r.pulls} 抽`, date: r.datetime })),
     ...data.materials.filter(m => m.status === 'watched').map(m => ({ kind: '物料', icon: '🎬', text: m.title, date: m.date })),
     ...data.readingLogs.map(r => ({ kind: '阅读', icon: '📖', text: `读到 ${r.progress}`, date: r.datetime })),
-    ...data.merch.filter(m => m.status === 'own').map(m => ({ kind: '周边', icon: '🎎', text: `入手 ${m.name}`, date: m.acquireDate })),
+    ...data.merch.filter(m => m.status === 'own').map(m => ({ kind: '周边', icon: '🧸', text: `入手 ${m.name}`, date: m.acquireDate })),
     ...data.sales.map(s => ({ kind: '出物', icon: '💱', text: `回血 ${fmtMoney(s.net)}`, date: s.date })),
   ].sort((a, b) => +new Date(b.date || 0) - +new Date(a.date || 0)).slice(0, 6);
 
@@ -69,7 +69,7 @@ export default function Home() {
     { path: '/games', icon: '🎮', label: '游戏', show: modules.games, count: data.games.length, color: '#7c5cff' },
     { path: '/stars', icon: '⭐', label: '追星', show: modules.stars, count: data.stars.length, color: '#ff7eb6' },
     { path: '/novels', icon: '📚', label: '小说', show: modules.novels, count: data.novels.length, color: '#22c55e' },
-    { path: '/merch', icon: '🎎', label: '周边', show: modules.merch, count: data.merch.filter(m => ['own', 'dup'].includes(m.status)).length, color: '#f59e0b' },
+    { path: '/merch', icon: '🧸', label: '周边', show: modules.merch, count: data.merch.filter(m => ['own', 'dup'].includes(m.status)).length, color: '#f59e0b' },
   ].filter(m => m.show);
 
   return (
