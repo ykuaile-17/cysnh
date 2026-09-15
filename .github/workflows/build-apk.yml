@@ -36,26 +36,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: 安装 Android SDK
+      - name: 安装 Android SDK（含构建组件）
         uses: android-actions/setup-android@v3
-
-      - name: 安装构建组件并接受许可
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
-        run: |
-          set -e
-          ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          # 自动找到 setup-android 实际安装的 cmdline-tools 路径（latest 或带版本号）
-          SM=$(ls "$ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1)
-          if [ -z "$SM" ]; then
-            echo "未找到 sdkmanager，诊断 SDK 目录："
-            ls -la "$ROOT" || true
-            ls -la "$ROOT/cmdline-tools" || true
-            exit 1
-          fi
-          echo "使用 sdkmanager: $SM"
-          yes | "$SM" --sdk_root="$ROOT" --licenses
-          "$SM" --sdk_root="$ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        with:
+          # 注意：默认会安装已弃用的 'tools' 包导致失败，这里明确指定需要的组件（不含 tools）
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
       - name: 同步网页资源到安卓工程
         run: npx cap sync android
