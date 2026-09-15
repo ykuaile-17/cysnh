@@ -1,6 +1,6 @@
 {
   "name": "次元收纳盒",
   "app_slug": "ciyuan-storage",
-  "version_description": "Fix calendar pool entry and show all images",
+  "version_description": "Add card awakening, detail pages and CSV import",
   "preview_type": "mobile"
 }

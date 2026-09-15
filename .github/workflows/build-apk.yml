@@ -39,10 +39,23 @@ jobs:
       - name: 安装 Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 接受许可并安装构建组件
+      - name: 安装构建组件并接受许可
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          set -e
+          ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          # 自动找到 setup-android 实际安装的 cmdline-tools 路径（latest 或带版本号）
+          SM=$(ls "$ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -n1)
+          if [ -z "$SM" ]; then
+            echo "未找到 sdkmanager，诊断 SDK 目录："
+            ls -la "$ROOT" || true
+            ls -la "$ROOT/cmdline-tools" || true
+            exit 1
+          fi
+          echo "使用 sdkmanager: $SM"
+          yes | "$SM" --sdk_root="$ROOT" --licenses
+          "$SM" --sdk_root="$ROOT" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: 同步网页资源到安卓工程
         run: npx cap sync android
