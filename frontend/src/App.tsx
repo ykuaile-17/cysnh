@@ -11,6 +11,7 @@ import Home from '@/pages/Home';
 import Games from '@/pages/Games';
 import GameDetail from '@/pages/GameDetail';
 import CardDetail from '@/pages/CardDetail';
+import WardrobeDetail from '@/pages/WardrobeDetail';
 import StoryDetail from '@/pages/StoryDetail';
 import Stars from '@/pages/Stars';
 import StarDetail from '@/pages/StarDetail';
@@ -66,6 +67,7 @@ function Root() {
         <Route path="/games" element={<Games />} />
         <Route path="/games/:id" element={<GameDetail />} />
         <Route path="/games/:id/cards/:cardId" element={<CardDetail />} />
+        <Route path="/games/:id/wardrobe/:wid" element={<WardrobeDetail />} />
         <Route path="/games/:id/stories/:storyId" element={<StoryDetail />} />
         <Route path="/stars" element={<Stars />} />
         <Route path="/stars/:id" element={<StarDetail />} />

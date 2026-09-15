@@ -36,7 +36,7 @@ export default function MaterialDetail() {
         {m.duration ? <InfoRow label="时长" value={`${m.duration} 分钟`} /> : null}
         {m.member && <InfoRow label="高光成员" value={m.member} />}
         {m.feeling && <InfoBlock label="感想/名场面" value={m.feeling} />}
-        {m.images && m.images.length > 0 && <ImageStrip images={m.images} h={28} gap="2" />}
+        {m.images && m.images.length > 0 && <ImageStrip images={m.images} />}
         {m.note && <InfoBlock label="备注" value={m.note} />}
       </div>
       <div className="h-4" />

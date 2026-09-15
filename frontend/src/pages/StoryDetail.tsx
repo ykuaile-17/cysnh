@@ -36,7 +36,7 @@ export default function StoryDetail() {
         <InfoRow label="完成" value={story.endDate ? fmtDate(story.endDate) : ''} />
         {story.summary && <InfoBlock label="剧情梗概" value={story.summary} />}
         {story.feeling && <InfoBlock label="个人感想" value={story.feeling} />}
-        {story.images && story.images.length > 0 && <ImageStrip images={story.images} h={28} gap="2" />}
+        {story.images && story.images.length > 0 && <ImageStrip images={story.images} />}
         {story.note && <InfoBlock label="备注" value={story.note} />}
         {linked.length > 0 && (
           <div className="rounded-xl border bg-card p-3">

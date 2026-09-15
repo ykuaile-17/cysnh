@@ -1,7 +1,7 @@
 // 共享编辑器：卡面、剧情、追星物料、小卡（列表页与详情页共用，编辑用弹窗，查看走独立页面）
 import { useState, useEffect } from 'react';
 import { db, uid } from '@/lib/db';
-import { GameStory, Card, Material, Photocard } from '@/lib/types';
+import { GameStory, Card, Material, Photocard, Wardrobe } from '@/lib/types';
 import {
   STORY_TYPE, STORY_STATUS, RARITY_OPTIONS,
   MATERIAL_TYPE, MATERIAL_STATUS,
@@ -156,6 +156,33 @@ export function PhotocardEditor({ open, onOpenChange, starId, photocard }: {
         <NumInput label="重复" value={d.dup ?? 0} onChange={v => setD({ ...d, dup: v })} />
       </div>
       <ImageField label="卡片图片" value={d.photo} onChange={v => setD({ ...d, photo: v })} />
+      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
+    </EditorModal>
+  );
+}
+
+export function WardrobeEditor({ open, onOpenChange, gameId, wardrobe }: {
+  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; wardrobe: Wardrobe | null;
+}) {
+  const [d, setD] = useState<Partial<Wardrobe>>({});
+  useEffect(() => {
+    if (open) setD(wardrobe ? { ...wardrobe } : { name: '', kind: '皮肤', price: undefined, owned: true, images: [], note: '' });
+  }, [open, wardrobe]);
+  const save = async () => {
+    if (!d.name?.trim()) { toast.error('请填写名称'); return; }
+    const now = Date.now();
+    if (wardrobe) await db.wardrobe.update(wardrobe.id, { ...d, updatedAt: now });
+    else await db.wardrobe.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
+      name: d.name!, kind: d.kind || '皮肤', price: d.price ?? undefined, owned: !!d.owned, images: d.images || [], note: d.note || '' });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  return (
+    <EditorModal title={wardrobe ? '编辑衣柜' : '加衣柜'} open={open} onOpenChange={onOpenChange} onSave={save}>
+      <TextInput label="名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
+      <TextInput label="类型" value={d.kind || ''} onChange={v => setD({ ...d, kind: v })} placeholder="皮肤/时装/装备/家具" />
+      <NumInput label="价格（自己填写，留空表示未填）" value={d.price ?? ''} onChange={v => setD({ ...d, price: v || undefined })} />
+      <MultiImageField label="图片（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} max={9} />
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
       <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
   );

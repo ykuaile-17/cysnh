@@ -57,7 +57,10 @@ export function MultiImagePicker({
 }) {
   const add = () => {
     if (max && value.length >= max) { toast.error('已达到最大数量'); return; }
-    pickImage((url) => onChange([...value, url].slice(0, max ?? 99)), { multiple: true });
+    pickImage(() => {}, {
+      multiple: true,
+      onPickAll: (urls) => onChange([...value, ...urls].slice(0, max ?? 99)),
+    });
   };
   return (
     <div className="flex flex-col gap-1.5">

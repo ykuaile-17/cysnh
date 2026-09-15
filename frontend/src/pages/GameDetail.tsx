@@ -16,7 +16,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
 import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput, ImageField, MultiImageField } from '@/components/form';
 import { ZoomableImage, ImageStrip } from '@/components/ImageViewer';
-import { StoryEditor, CardEditor } from '@/components/editors';
+import { StoryEditor, CardEditor, WardrobeEditor } from '@/components/editors';
 import { toast } from 'sonner';
 
 const cn = (...a: any[]) => a.filter(Boolean).join(' ');
@@ -218,7 +218,7 @@ export default function GameDetail() {
                 <div key={c.id} onClick={() => navigate(`/games/${id}/cards/${c.id}`)}
                   className={cn('rounded-xl border p-3', c.owned ? 'bg-card' : 'bg-muted/40 opacity-70')}>
                   {c.images && c.images.length ? (
-                    <ImageStrip images={c.images} h={24} />
+                    <ImageStrip images={c.images} />
                   ) : c.coverImg ? (
                     <ZoomableImage src={c.coverImg} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />
                   ) : null}
@@ -289,11 +289,11 @@ export default function GameDetail() {
             <Button size="sm" onClick={() => { setEditingWard(null); setWardOpen(true); }}><Plus className="size-4" /> 加衣柜</Button>
           </div>
           {wardrobe.length === 0 ? <Empty icon="👗" text="还没有衣橱收集" /> : wardrobe.map(w => (
-            <div key={w.id} onClick={() => { setEditingWard(w); setWardOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
-              {w.images && w.images.length > 0 && <ImageStrip images={w.images} h={20} />}
+            <div key={w.id} onClick={() => navigate(`/games/${id}/wardrobe/${w.id}`)} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+              {w.images && w.images.length > 0 && <ImageStrip images={w.images} />}
               <div className="flex items-center justify-between">
                 <span className="font-medium truncate">{w.name}</span>
-                <span className="text-xs" style={{ color: RARITY_COLOR[w.rarity] || '#666' }}>{w.rarity}</span>
+                <span className="text-xs text-muted-foreground">{w.price != null ? `¥${w.price}` : ''}</span>
               </div>
               <p className="text-xs text-muted-foreground">{w.kind} · {w.owned ? '已拥有' : '未拥有'}</p>
             </div>
@@ -529,33 +529,6 @@ function TopupEditor({ open, onOpenChange, gameId, topup }: {
       </div>
       <TextInput label="渠道" value={d.channel || ''} onChange={v => setD({ ...d, channel: v })} placeholder="官网/App Store/支付宝" />
       <ImageField label="充值截图" value={d.image} onChange={v => setD({ ...d, image: v })} />
-      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
-    </EditorModal>
-  );
-}
-
-function WardrobeEditor({ open, onOpenChange, gameId, wardrobe }: {
-  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; wardrobe: Wardrobe | null;
-}) {
-  const [d, setD] = useState<Partial<Wardrobe>>({});
-  useEffect(() => {
-    if (open) setD(wardrobe ? { ...wardrobe } : { name: '', kind: '皮肤', rarity: 'SSR', owned: true, images: [], note: '' });
-  }, [open, wardrobe]);
-  const save = async () => {
-    if (!d.name?.trim()) { toast.error('请填写名称'); return; }
-    const now = Date.now();
-    if (wardrobe) await db.wardrobe.update(wardrobe.id, { ...d, updatedAt: now });
-    else await db.wardrobe.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
-      name: d.name!, kind: d.kind || '皮肤', rarity: d.rarity || '', owned: !!d.owned, images: d.images || [], note: d.note || '' });
-    toast.success('已保存'); onOpenChange(false);
-  };
-  return (
-    <EditorModal title={wardrobe ? '编辑衣柜' : '加衣柜'} open={open} onOpenChange={onOpenChange} onSave={save}>
-      <TextInput label="名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
-      <TextInput label="类型" value={d.kind || ''} onChange={v => setD({ ...d, kind: v })} placeholder="皮肤/时装/装备/家具" />
-      <SelectField label="稀有度" value={d.rarity || 'SSR'} onChange={v => setD({ ...d, rarity: v })} options={RARITY_OPTIONS} />
-      <MultiImageField label="图片（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} max={9} />
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
       <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
   );

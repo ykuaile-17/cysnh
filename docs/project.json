@@ -1,6 +1,6 @@
 {
   "name": "次元收纳盒",
   "app_slug": "ciyuan-storage",
-  "version_description": "Fix Android SDK install in CI",
+  "version_description": "Fix CI Android SDK packages install",
   "preview_type": "mobile"
 }

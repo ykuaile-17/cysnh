@@ -35,7 +35,7 @@ export default function CardDetail() {
           <Pill color={card.owned ? '#22c55e' : '#94a3b8'}>{card.owned ? '已拥有' : '未拥有'}</Pill>
           {card.awaken ? <Pill color="#7c5cff">觉醒 / 突破 {card.awaken} 阶</Pill> : null}
         </div>
-        {card.images && card.images.length > 0 && <ImageStrip images={card.images} h={28} gap="2" />}
+        {card.images && card.images.length > 0 && <ImageStrip images={card.images} />}
         <InfoRow label="获取方式" value={card.obtainWay} />
         <InfoRow label="获得日期" value={card.obtainDate} />
         {story && (

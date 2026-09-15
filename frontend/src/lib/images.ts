@@ -40,19 +40,26 @@ function compress(dataUrl: string, maxSize: number): Promise<string> {
 
 // 统一唤起图片选择（相册/拍照），通过回调返回 dataURL
 // opts.capture: 指定 'environment'/'user' 仅拍照；不传则弹出系统选择（可相册可拍照）
-// opts.multiple: 是否允许多选，多选时每个文件都会触发一次 onPick
+// opts.multiple: 是否允许多选
+//   多选时建议用 onPickAll 一次性拿到全部结果（避免并发覆盖），单选用 onPick
 export function pickImage(
   onPick: (dataUrl: string) => void,
-  opts?: { capture?: 'user' | 'environment'; multiple?: boolean },
+  opts?: { capture?: 'user' | 'environment'; multiple?: boolean; onPickAll?: (urls: string[]) => void },
 ) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
   if (opts?.capture) input.capture = opts.capture;
   if (opts?.multiple) input.multiple = true;
-  input.onchange = () => {
+  input.onchange = async () => {
     const files = input.files ? Array.from(input.files) : [];
     if (!files.length) return;
+    if (opts?.multiple && opts.onPickAll) {
+      // 一次性读完全部再回调，避免逐个追加时旧状态覆盖
+      const urls = await Promise.all(files.map(f => fileToDataUrl(f).catch(() => '')));
+      opts.onPickAll(urls.filter(Boolean));
+      return;
+    }
     files.forEach(f => fileToDataUrl(f).then(onPick).catch(() => {}));
   };
   input.click();

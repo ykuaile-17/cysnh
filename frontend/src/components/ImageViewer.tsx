@@ -41,17 +41,17 @@ export function ZoomableImage({
   );
 }
 
-// 多图横向条：列表里把添加的所有图片都展示出来，可点开大图
+// 多图网格：列表/详情里把所有添加的图片都展示出来（响应式网格，全部可见），可点开大图
 export function ImageStrip({
-  images, h = 20, gap = '1.5',
-}: { images?: string[]; h?: number; gap?: string }) {
+  images,
+}: { images?: string[] }) {
   if (!images || !images.length) return null;
   return (
-    <div className="mt-2 flex gap-1.5 overflow-x-auto">
+    <div className="mt-2 grid grid-cols-3 gap-1.5">
       {images.map((img, i) => (
         <ZoomableImage key={i} src={img}
-          className={`h-${h} w-${h} shrink-0 overflow-hidden rounded-lg border bg-muted/40`}
-          imgClassName={`h-${h} w-${h} object-cover`} />
+          className="block aspect-square w-full overflow-hidden rounded-lg border bg-muted/40"
+          imgClassName="h-full w-full object-cover" />
       ))}
     </div>
   );

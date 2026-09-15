@@ -566,7 +566,7 @@ export interface Wardrobe extends BaseEntity {
   gameId: ID;
   name: string;
   kind: string; // 类型：时装/皮肤/装备/家具...
-  rarity: string;
+  price?: number; // 价格（自己填写）
   owned: boolean;
   images?: string[];
   note: string;

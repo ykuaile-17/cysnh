@@ -130,7 +130,7 @@ export default function Merch() {
             <div key={m.id} onClick={() => navigate(`/merch/${m.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
               {m.images && m.images.length ? (
-                <ImageStrip images={m.images} h={24} />
+                <ImageStrip images={m.images} />
               ) : m.coverImg ? (
                 <ZoomableImage src={m.coverImg} className="block h-24 w-full overflow-hidden rounded-lg" imgClassName="h-24 w-full object-cover" />
               ) : (
