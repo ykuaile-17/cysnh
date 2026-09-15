@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
 import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, ImageField, LinkField, MultiImageField } from '@/components/form';
+import { MaterialEditor, PhotocardEditor } from '@/components/editors';
 import { ZoomableImage } from '@/components/ImageViewer';
 import { toast } from 'sonner';
 
@@ -40,6 +41,10 @@ export default function StarDetail() {
     const add = params.get('add');
     if (add === 'material') { setEditM(null); setMOpen(true); setParams({}, { replace: true }); }
     if (add === 'schedule') { setEditS(null); setSOpen(true); setParams({}, { replace: true }); }
+    const em = params.get('editMaterial');
+    if (em) { db.materials.get(em).then(m => { if (m) { setEditM(m); setMOpen(true); } }); setParams({}, { replace: true }); }
+    const ep = params.get('editPc');
+    if (ep) { db.photocards.get(ep).then(p => { if (p) { setEditPc(p); setPcOpen(true); } }); setParams({}, { replace: true }); }
   }, [params, setParams]);
 
   if (!star) return <Empty icon="⏳" text="加载中…" />;
@@ -92,7 +97,7 @@ export default function StarDetail() {
         <TabsContent value="material" className="flex flex-col gap-2">
           <div className="flex justify-end"><Button size="sm" onClick={() => { setEditM(null); setMOpen(true); }}><Plus className="size-4" /> 添加</Button></div>
           {materials.length === 0 ? <Empty icon="🎬" text="还没有物料" /> : materials.map(m => (
-            <div key={m.id} onClick={() => { setEditM(m); setMOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+            <div key={m.id} onClick={() => navigate(`/stars/${id}/materials/${m.id}`)} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
               <div className="flex items-center justify-between">
                 <span className="truncate font-medium">{m.title}</span>
                 <Pill>{MATERIAL_TYPE[m.type]}</Pill>
@@ -160,7 +165,7 @@ export default function StarDetail() {
           {photocards.length === 0 ? <Empty icon="💳" text="还没有小卡图鉴" /> : (
             <div className="flex flex-col gap-2">
               {photocards.map(p => (
-                <div key={p.id} onClick={() => { setEditPc(p); setPcOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
+                <div key={p.id} onClick={() => navigate(`/stars/${id}/photocards/${p.id}`)} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
                   {p.photo && <ZoomableImage src={p.photo} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />}
                   <div className="flex items-center justify-between">
                     <span className="truncate font-medium">{p.name}</span>
@@ -181,37 +186,6 @@ export default function StarDetail() {
       <MediaEditor open={mdOpen} onOpenChange={setMdOpen} starId={id} />
       <PhotocardEditor open={pcOpen} onOpenChange={setPcOpen} starId={id} photocard={editPc} />
     </div>
-  );
-}
-
-function MaterialEditor({ open, onOpenChange, starId, material }: any) {
-  const [d, setD] = useState<any>({});
-  useEffect(() => { if (open) setD(material ? { ...material } : { type: 'mv', title: '', album: '', episode: '', date: '', platform: '', url: '', duration: 0, status: 'want', rating: 0, feeling: '', highlight: '', member: '', tags: [], note: '', images: [] }); }, [open, material]);
-  const save = async () => {
-    if (!d.title?.trim()) { toast.error('请填写标题'); return; }
-    const now = Date.now();
-    if (material) await db.materials.update(material.id, { ...d, updatedAt: now });
-    else await db.materials.add({ id: uid(), starId, createdAt: now, updatedAt: now, deletedAt: null, ...d });
-    toast.success('已保存'); onOpenChange(false);
-  };
-  return (
-    <EditorModal title={material ? '编辑物料' : '记物料'} open={open} onOpenChange={onOpenChange} onSave={save}>
-      <SelectField label="类型" value={d.type || 'mv'} onChange={v => setD({ ...d, type: v })} options={Object.entries(MATERIAL_TYPE).map(([value, label]) => ({ value, label }))} />
-      <LinkField label="链接（自动带出标题/平台）" value={d.url || ''} onChange={v => setD({ ...d, url: v })} onResolved={r => setD({ ...d, title: r.title || d.title, platform: r.platform })} />
-      <TextInput label="标题" value={d.title || ''} onChange={v => setD({ ...d, title: v })} />
-      <div className="grid grid-cols-2 gap-3">
-        <TextInput label="所属专辑/节目" value={d.album || ''} onChange={v => setD({ ...d, album: v })} />
-        <TextInput label="期数/集数" value={d.episode || ''} onChange={v => setD({ ...d, episode: v })} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <SelectField label="状态" value={d.status || 'want'} onChange={v => setD({ ...d, status: v })} options={Object.entries(MATERIAL_STATUS).map(([value, label]) => ({ value, label }))} />
-        <DateInput label="日期" value={d.date || ''} onChange={v => setD({ ...d, date: v })} />
-      </div>
-      <TextInput label="平台" value={d.platform || ''} onChange={v => setD({ ...d, platform: v })} />
-      <NumInput label="时长(分钟)" value={d.duration ?? 0} onChange={v => setD({ ...d, duration: v })} />
-      <AreaInput label="感想/名场面" value={d.feeling || ''} onChange={v => setD({ ...d, feeling: v })} />
-      <MultiImageField label="物料截图（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} />
-    </EditorModal>
   );
 }
 
@@ -291,37 +265,6 @@ function MediaEditor({ open, onOpenChange, starId }: any) {
         <label className="flex items-center gap-1"><input type="checkbox" checked={!!d.favorite} onChange={e => setD({ ...d, favorite: e.target.checked })} /> 收藏</label>
         <label className="flex items-center gap-1"><input type="checkbox" checked={!!d.best} onChange={e => setD({ ...d, best: e.target.checked })} /> 最爱</label>
       </div>
-    </EditorModal>
-  );
-}
-
-const PHOTOCARD_KIND: Record<string, string> = { album: '专辑', single: '单曲', event: '活动', preorder: '预售', goods: '特典', other: '其他' };
-
-function PhotocardEditor({ open, onOpenChange, starId, photocard }: any) {
-  const [d, setD] = useState<any>({});
-  useEffect(() => { if (open) setD(photocard ? { ...photocard } : { album: '', name: '', kind: 'album', rarity: '', total: 1, owned: 1, dup: 0, photo: '', note: '' }); }, [open, photocard]);
-  const save = async () => {
-    if (!d.name?.trim()) { toast.error('请填写卡名'); return; }
-    const now = Date.now();
-    if (photocard) await db.photocards.update(photocard.id, { ...d, updatedAt: now });
-    else await db.photocards.add({ id: uid(), starId, createdAt: now, updatedAt: now, deletedAt: null, ...d });
-    toast.success('已保存'); onOpenChange(false);
-  };
-  return (
-    <EditorModal title={photocard ? '编辑小卡' : '加小卡'} open={open} onOpenChange={onOpenChange} onSave={save}>
-      <TextInput label="卡名" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
-      <TextInput label="专辑/批次" value={d.album || ''} onChange={v => setD({ ...d, album: v })} />
-      <div className="grid grid-cols-2 gap-3">
-        <SelectField label="类型" value={d.kind || 'album'} onChange={v => setD({ ...d, kind: v })} options={Object.entries(PHOTOCARD_KIND).map(([value, label]) => ({ value, label }))} />
-        <TextInput label="稀有度（可选）" value={d.rarity || ''} onChange={v => setD({ ...d, rarity: v })} placeholder="可不填" />
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <NumInput label="总拥有" value={d.total ?? 1} onChange={v => setD({ ...d, total: v })} />
-        <NumInput label="不同款" value={d.owned ?? 1} onChange={v => setD({ ...d, owned: v })} />
-        <NumInput label="重复" value={d.dup ?? 0} onChange={v => setD({ ...d, dup: v })} />
-      </div>
-      <ImageField label="卡片图片" value={d.photo} onChange={v => setD({ ...d, photo: v })} />
-      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
     </EditorModal>
   );
 }

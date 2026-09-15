@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader, Empty, Pill, StatCard } from '@/components/common';
 import { EditorModal, Field, TextInput, SelectField, DateInput, AreaInput, NumInput, ImageField, MultiImageField } from '@/components/form';
-import { ZoomableImage } from '@/components/ImageViewer';
+import { ZoomableImage, ImageStrip } from '@/components/ImageViewer';
+import { StoryEditor, CardEditor } from '@/components/editors';
 import { toast } from 'sonner';
 
 const cn = (...a: any[]) => a.filter(Boolean).join(' ');
@@ -56,6 +57,10 @@ export default function GameDetail() {
     const add = params.get('add');
     if (add === 'story') { setEditingStory(null); setStoryOpen(true); setParams({}, { replace: true }); }
     if (add === 'gacha') { setGachaOpen(true); setParams({}, { replace: true }); }
+    const ec = params.get('editCard');
+    if (ec) { db.cards.get(ec).then(c => { if (c) { setEditingCard(c); setCardOpen(true); } }); setParams({}, { replace: true }); }
+    const es = params.get('editStory');
+    if (es) { db.gameStories.get(es).then(s => { if (s) { setEditingStory(s); setStoryOpen(true); } }); setParams({}, { replace: true }); }
   }, [params, setParams]);
 
   if (!game) return <Empty icon="⏳" text="加载中…" />;
@@ -129,7 +134,7 @@ export default function GameDetail() {
           {stories.length === 0 ? <Empty icon="📜" text="还没有剧情记录" /> : stories.map(s => {
             const linked = cards.filter(c => c.storyId === s.id);
             return (
-            <div key={s.id} onClick={() => { setEditingStory(s); setStoryOpen(true); }}
+            <div key={s.id} onClick={() => navigate(`/games/${id}/stories/${s.id}`)}
               className="rounded-xl border bg-card p-3 active:scale-[0.99]">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{s.title}</span>
@@ -148,7 +153,7 @@ export default function GameDetail() {
                   <p className="mb-1 text-[11px] text-muted-foreground">关联卡面（{linked.length}）</p>
                   <div className="flex gap-1.5 overflow-x-auto">
                     {linked.map(c => (
-                      <button key={c.id} onClick={(e) => { e.stopPropagation(); setEditingCard(c); setCardOpen(true); }}
+                      <button key={c.id} onClick={(e) => { e.stopPropagation(); navigate(`/games/${id}/cards/${c.id}`); }}
                         className="shrink-0 rounded-lg border bg-muted/40 p-1 text-center">
                         {c.coverImg ? <img src={c.coverImg} className="size-12 rounded object-cover" alt="" /> : <span className="block size-12 text-[10px] leading-tight flex items-center justify-center">{c.name}</span>}
                       </button>
@@ -210,10 +215,10 @@ export default function GameDetail() {
           {cards.length === 0 ? <Empty icon="🃏" text="图鉴还是空的" /> : (
             <div className="grid grid-cols-2 gap-2">
               {cards.map(c => (
-                <div key={c.id} onClick={() => { setEditingCard(c); setCardOpen(true); }}
+                <div key={c.id} onClick={() => navigate(`/games/${id}/cards/${c.id}`)}
                   className={cn('rounded-xl border p-3', c.owned ? 'bg-card' : 'bg-muted/40 opacity-70')}>
                   {c.images && c.images.length ? (
-                    <ZoomableImage src={c.images[0]} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />
+                    <ImageStrip images={c.images} h={24} />
                   ) : c.coverImg ? (
                     <ZoomableImage src={c.coverImg} className="mb-2 block h-24 w-full overflow-hidden rounded" imgClassName="h-24 w-full object-cover" />
                   ) : null}
@@ -221,12 +226,13 @@ export default function GameDetail() {
                     <span className="truncate font-medium">{c.name}</span>
                     <span className="text-xs" style={{ color: RARITY_COLOR[c.rarity] || '#666' }}>{c.rarity}</span>
                   </div>
+                  {c.awaken ? <p className="text-[11px] text-primary">觉醒 / 突破 {c.awaken} 阶</p> : null}
                   <p className="text-xs text-muted-foreground">{c.character}</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     <Pill color={c.owned ? '#22c55e' : '#94a3b8'}>{c.owned ? '已拥有' : '未拥有'}</Pill>
                     {(() => { const sid = c.storyId; const st = sid ? storyMap[sid] : null; if (!st) return null;
                       return (
-                      <button onClick={(e) => { e.stopPropagation(); setEditingStory(st); setStoryOpen(true); }}>
+                      <button onClick={(e) => { e.stopPropagation(); navigate(`/games/${id}/stories/${st.id}`); }}>
                         <Pill color="#7c5cff">联动：{st.title}</Pill>
                       </button>
                       );
@@ -284,9 +290,7 @@ export default function GameDetail() {
           </div>
           {wardrobe.length === 0 ? <Empty icon="👗" text="还没有衣橱收集" /> : wardrobe.map(w => (
             <div key={w.id} onClick={() => { setEditingWard(w); setWardOpen(true); }} className="rounded-xl border bg-card p-3 active:scale-[0.99]">
-              {w.images && w.images.length > 0 && (
-                <ZoomableImage src={w.images[0]} className="mb-2 block h-20 w-full overflow-hidden rounded" imgClassName="h-20 w-full object-cover" />
-              )}
+              {w.images && w.images.length > 0 && <ImageStrip images={w.images} h={20} />}
               <div className="flex items-center justify-between">
                 <span className="font-medium truncate">{w.name}</span>
                 <span className="text-xs" style={{ color: RARITY_COLOR[w.rarity] || '#666' }}>{w.rarity}</span>
@@ -347,48 +351,6 @@ function BarChart({ title, data, color }: { title: string; data: { month: string
         ))}
       </div>
     </div>
-  );
-}
-
-function StoryEditor({ open, onOpenChange, gameId, story }: {
-  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; story: GameStory | null;
-}) {
-  const [d, setD] = useState<Partial<GameStory>>({});
-  useEffect(() => {
-    if (open) setD(story ? { ...story } : {
-      type: 'main', title: '', chapter: '', status: 'unwatch', startDate: '', endDate: '',
-      progress: '', summary: '', feeling: '', rating: 0, spoiler: false, tags: [], note: '', images: [],
-    });
-  }, [open, story]);
-  const save = async () => {
-    if (!d.title?.trim()) { toast.error('请填写标题'); return; }
-    const now = Date.now();
-    if (story) await db.gameStories.update(story.id, { ...d, updatedAt: now });
-    else await db.gameStories.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
-      type: (d.type as any) || 'main', title: d.title!, chapter: d.chapter || '', startDate: d.startDate || '',
-      endDate: d.endDate || '', status: (d.status as any) || 'unwatch', progress: d.progress || '', summary: d.summary || '',
-      feeling: d.feeling || '', rating: d.rating || 0, spoiler: !!d.spoiler, tags: d.tags || [], note: d.note || '', images: d.images || [] });
-    toast.success('已保存'); onOpenChange(false);
-  };
-  return (
-    <EditorModal title={story ? '编辑剧情' : '记剧情'} open={open} onOpenChange={onOpenChange} onSave={save}>
-      <SelectField label="类型" value={d.type || 'main'} onChange={v => setD({ ...d, type: v as any })}
-        options={Object.entries(STORY_TYPE).map(([value, label]) => ({ value, label }))} />
-      <TextInput label="标题" value={d.title || ''} onChange={v => setD({ ...d, title: v })} />
-      <TextInput label="章节/版本" value={d.chapter || ''} onChange={v => setD({ ...d, chapter: v })} />
-      <SelectField label="状态" value={d.status || 'unwatch'} onChange={v => setD({ ...d, status: v as any })}
-        options={Object.entries(STORY_STATUS).map(([value, label]) => ({ value, label }))} />
-      <div className="grid grid-cols-2 gap-3">
-        <DateInput label="开始" value={d.startDate || ''} onChange={v => setD({ ...d, startDate: v })} />
-        <DateInput label="完成" value={d.endDate || ''} onChange={v => setD({ ...d, endDate: v })} />
-      </div>
-      <NumInput label="评分(1-5)" value={d.rating ?? 0} onChange={v => setD({ ...d, rating: v })} />
-      <AreaInput label="剧情梗概" value={d.summary || ''} onChange={v => setD({ ...d, summary: v })} />
-      <AreaInput label="个人感想" value={d.feeling || ''} onChange={v => setD({ ...d, feeling: v })} />
-      <MultiImageField label="剧情截图（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} />
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.spoiler} onChange={e => setD({ ...d, spoiler: e.target.checked })} /> 含剧透（折叠）</label>
-      <AreaInput label="备注" value={d.note || ''} onChange={v => setD({ ...d, note: v })} />
-    </EditorModal>
   );
 }
 
@@ -512,46 +474,6 @@ function GachaEditor({ open, onOpenChange, gameId, pools }: {
           </div>
         ))}
       </div>
-    </EditorModal>
-  );
-}
-
-function CardEditor({ open, onOpenChange, gameId, card, stories, accounts }: {
-  open: boolean; onOpenChange: (v: boolean) => void; gameId: string; card: Card | null; stories: GameStory[]; accounts: GameAccount[];
-}) {
-  const [d, setD] = useState<Partial<Card>>({});
-  useEffect(() => {
-    if (!open) return;
-    if (card) setD({ ...card });
-    else setD({ name: '', character: '', rarity: 'SSR', owned: true, obtainWay: '', obtainDate: '', images: [], coverImg: undefined, storyId: null, accountId: null, accountNote: '' });
-  }, [open, card]);
-  const save = async () => {
-    if (!d.name?.trim()) { toast.error('请填写卡面名'); return; }
-    const now = Date.now();
-    const payload: any = { ...d, images: d.images && d.images.length ? d.images : (d.coverImg ? [d.coverImg] : []), updatedAt: now };
-    if (card) await db.cards.update(card.id, payload);
-    else await db.cards.add({ id: uid(), gameId, createdAt: now, updatedAt: now, deletedAt: null,
-      name: d.name!, character: d.character || '', rarity: d.rarity || 'SSR', owned: !!d.owned, obtainWay: d.obtainWay || '', obtainDate: d.obtainDate || '',
-      images: payload.images, coverImg: payload.images[0], storyId: d.storyId ?? null, accountId: d.accountId ?? null, accountNote: d.accountNote || '' });
-    toast.success('已保存'); onOpenChange(false);
-  };
-  return (
-    <EditorModal title={card ? '编辑卡面' : '添加卡面'} open={open} onOpenChange={onOpenChange} onSave={save}>
-      <TextInput label="卡面名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} />
-      <TextInput label="角色" value={d.character || ''} onChange={v => setD({ ...d, character: v })} />
-      <SelectField label="稀有度" value={d.rarity || 'SSR'} onChange={v => setD({ ...d, rarity: v })}
-        options={RARITY_OPTIONS} />
-      <MultiImageField label="卡面图片（可多张）" value={d.images || []} onChange={v => setD({ ...d, images: v })} max={9} />
-      <SelectField label="联动剧情" value={d.storyId || ''} onChange={v => setD({ ...d, storyId: v || null })}
-        options={[{ value: '', label: '不关联' }, ...stories.map(s => ({ value: s.id, label: s.title }))]} />
-      <SelectField label="所属账号" value={d.accountId || ''} onChange={v => setD({ ...d, accountId: v || null })}
-        options={[{ value: '', label: '不指定' }, ...accounts.map(a => ({ value: a.id, label: a.name }))]} />
-      {accounts.length > 0 && (
-        <TextInput label="账号备注（如：该卡由某号拥有）" value={d.accountNote || ''} onChange={v => setD({ ...d, accountNote: v })} />
-      )}
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!d.owned} onChange={e => setD({ ...d, owned: e.target.checked })} /> 已拥有</label>
-      <TextInput label="获取方式" value={d.obtainWay || ''} onChange={v => setD({ ...d, obtainWay: v })} />
-      <DateInput label="获得日期" value={d.obtainDate || ''} onChange={v => setD({ ...d, obtainDate: v })} />
     </EditorModal>
   );
 }

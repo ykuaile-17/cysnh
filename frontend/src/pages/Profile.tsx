@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, hardDelete, restore, uid } from '@/lib/db';
 import { rollbackTo } from '@/lib/history';
@@ -24,6 +25,7 @@ const TABLES: [string, any, string][] = [
 
 export default function Profile() {
   const { profile, ui, modules, pin, updateProfile, updateUI, updateModules, updatePin } = useApp();
+  const navigate = useNavigate();
   const [pinOpen, setPinOpen] = useState(false);
   const [binOpen, setBinOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
@@ -154,6 +156,10 @@ export default function Profile() {
           <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}><Upload className="size-4" /> 导入</Button>
           <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={e => { if (e.target.files?.[0]) importData(e.target.files[0]); e.target.value = ''; }} />
         </div>
+        <Row>
+          <span className="flex items-center gap-1.5"><Upload className="size-4" /> 从 Excel/CSV 导入</span>
+          <Button size="sm" variant="outline" onClick={() => navigate('/import')}>去导入</Button>
+        </Row>
         <Row>
           <span className="flex items-center gap-1.5"><Trash2 className="size-4" /> 回收站{(trash?.length || 0) > 0 ? `（${(trash?.length)})` : ''}</span>
           <Button size="sm" variant="outline" onClick={() => setBinOpen(true)}>查看</Button>

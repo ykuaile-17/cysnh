@@ -1,17 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CalendarClock, Dices, Sparkles } from 'lucide-react';
-import { db, uid } from '@/lib/db';
+import { CalendarClock, Dices, Sparkles, Plus, Pencil } from 'lucide-react';
+import { db, uid, softDelete } from '@/lib/db';
 import { toast } from 'sonner';
 import { GachaPool, Game } from '@/lib/types';
 import { POOL_TYPE, REMINDER_TYPE_LABEL, fmtDate, countdownText, daysUntil } from '@/lib/format';
 import { PageHeader, Empty, Pill } from '@/components/common';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { EditorModal, SelectField, TextInput, DateInput, NumInput } from '@/components/form';
 
 export default function Calendar() {
   const navigate = useNavigate();
   const [tab, setTab] = useState('pool');
+  const [poolOpen, setPoolOpen] = useState(false);
+  const [editingPool, setEditingPool] = useState<GachaPool | null>(null);
 
   const pools = useLiveQuery(() => db.gachaPools.filter(p => !p.deletedAt).toArray(), [], []) || [];
   const games = useLiveQuery(() => db.games.filter(g => !g.deletedAt).toArray(), [], []) || [];
@@ -64,7 +68,11 @@ export default function Calendar() {
         </TabsList>
 
         <TabsContent value="pool" className="flex flex-col gap-2 pt-2">
-          {sortedPools.length === 0 ? <Empty icon="🎲" text="还没有卡池，去游戏里记抽卡时新建" /> : sortedPools.map(p => {
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-sm text-muted-foreground">卡池排期（开始/结束日期会显示在日历上）</span>
+            <Button size="sm" onClick={() => { setEditingPool(null); setPoolOpen(true); }}><Plus className="size-4" /> 添加卡池</Button>
+          </div>
+          {sortedPools.length === 0 ? <Empty icon="🎲" text="还没有卡池，点右上角「添加卡池」填写排期" /> : sortedPools.map(p => {
             const st = poolStatus(p);
             const badge = st === 'active' ? { t: '进行中', c: '#22c55e' } : st === 'upcoming' ? { t: '即将开始', c: '#f59e0b' } : { t: '已结束', c: '#94a3b8' };
             return (
@@ -75,6 +83,8 @@ export default function Calendar() {
                   </span>
                   <div className="flex items-center gap-2">
                     <Pill color={badge.c}>{badge.t}</Pill>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingPool(p); setPoolOpen(true); }}
+                      className="rounded-full border p-1 text-muted-foreground active:scale-95" aria-label="编辑卡池"><Pencil className="size-3.5" /></button>
                     <button onClick={(e) => { e.stopPropagation(); addPoolReminder(p); }}
                       className="rounded-full border px-2 py-0.5 text-[11px] text-primary active:scale-95">加入提醒</button>
                   </div>
@@ -115,6 +125,49 @@ export default function Calendar() {
         </TabsContent>
       </Tabs>
       <div className="h-4" />
+
+      <PoolEditor open={poolOpen} onOpenChange={setPoolOpen} pool={editingPool} games={games} />
     </div>
+  );
+}
+
+function PoolEditor({ open, onOpenChange, pool, games }: {
+  open: boolean; onOpenChange: (v: boolean) => void; pool: GachaPool | null; games: Game[];
+}) {
+  const [d, setD] = useState<Partial<GachaPool>>({});
+  useEffect(() => {
+    if (open) setD(pool ? { ...pool } : { name: '', type: 'limited', gameId: (games[0]?.id || '') as any, startDate: '', endDate: '', pityHard: 0, pitySoft: 0 });
+  }, [open, pool, games]);
+  const save = async () => {
+    if (!d.name?.trim()) { toast.error('请填写卡池名称'); return; }
+    if (!d.gameId) { toast.error('请选择所属游戏'); return; }
+    const now = Date.now();
+    if (pool) await db.gachaPools.update(pool.id, { ...d, updatedAt: now });
+    else await db.gachaPools.add({ id: uid(), gameId: d.gameId as any, name: d.name.trim(), type: (d.type as any) || 'other', startDate: d.startDate || '', endDate: d.endDate || '', pityHard: d.pityHard || undefined, pitySoft: d.pitySoft || undefined, createdAt: now, updatedAt: now, deletedAt: null });
+    toast.success('已保存'); onOpenChange(false);
+  };
+  const del = async () => {
+    if (pool) { await softDelete(db.gachaPools, pool.id); toast('已删除卡池'); onOpenChange(false); }
+  };
+  return (
+    <EditorModal title={pool ? '编辑卡池' : '添加卡池'} open={open} onOpenChange={onOpenChange} onSave={save}
+      saveText={pool ? '保存' : '添加'}>
+      <SelectField label="所属游戏" value={d.gameId || ''} onChange={v => setD({ ...d, gameId: v as any })}
+        options={games.map(g => ({ value: g.id, label: g.name }))} />
+      <TextInput label="卡池名称" value={d.name || ''} onChange={v => setD({ ...d, name: v })} placeholder="如：限定UP·星之少女" />
+      <SelectField label="类型" value={d.type || 'limited'} onChange={v => setD({ ...d, type: v as any })}
+        options={Object.entries(POOL_TYPE).map(([value, label]) => ({ value, label }))} />
+      <div className="grid grid-cols-2 gap-3">
+        <DateInput label="开始日期" value={d.startDate || ''} onChange={v => setD({ ...d, startDate: v })} />
+        <DateInput label="结束日期" value={d.endDate || ''} onChange={v => setD({ ...d, endDate: v })} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <NumInput label="硬保底抽数" value={d.pityHard ?? 0} onChange={v => setD({ ...d, pityHard: v })} placeholder="如：90" />
+        <NumInput label="软保底抽数" value={d.pitySoft ?? 0} onChange={v => setD({ ...d, pitySoft: v })} placeholder="如：74" />
+      </div>
+      {pool && (
+        <button type="button" className="mt-1 text-sm text-destructive active:scale-95" onClick={del}>删除此卡池</button>
+      )}
+    </EditorModal>
   );
 }

@@ -9,7 +9,7 @@ import { MERCH_STATUS, MERCH_CATEGORY, fmtMoney } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Empty, FloatAdd, Pill } from '@/components/common';
-import { ZoomableImage } from '@/components/ImageViewer';
+import { ZoomableImage, ImageStrip } from '@/components/ImageViewer';
 import { EditorModal, Field, TextInput, SelectField, DateInput, NumInput, AreaInput, MultiImageField } from '@/components/form';
 import { toast } from 'sonner';
 
@@ -129,8 +129,10 @@ export default function Merch() {
           {filtered.map(m => (
             <div key={m.id} onClick={() => navigate(`/merch/${m.id}`)}
               className="flex cursor-pointer flex-col gap-2 rounded-2xl border bg-card p-3 active:scale-[0.98]">
-              {(m.images && m.images[0]) || m.coverImg ? (
-                <ZoomableImage src={(m.images && m.images[0]) || m.coverImg || ''} className="block h-24 w-full overflow-hidden rounded-lg" imgClassName="h-24 w-full object-cover" />
+              {m.images && m.images.length ? (
+                <ImageStrip images={m.images} h={24} />
+              ) : m.coverImg ? (
+                <ZoomableImage src={m.coverImg} className="block h-24 w-full overflow-hidden rounded-lg" imgClassName="h-24 w-full object-cover" />
               ) : (
                 <span className="text-3xl">{m.cover || '🧸'}</span>
               )}

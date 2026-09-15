@@ -40,3 +40,19 @@ export function ZoomableImage({
     </>
   );
 }
+
+// 多图横向条：列表里把添加的所有图片都展示出来，可点开大图
+export function ImageStrip({
+  images, h = 20, gap = '1.5',
+}: { images?: string[]; h?: number; gap?: string }) {
+  if (!images || !images.length) return null;
+  return (
+    <div className="mt-2 flex gap-1.5 overflow-x-auto">
+      {images.map((img, i) => (
+        <ZoomableImage key={i} src={img}
+          className={`h-${h} w-${h} shrink-0 overflow-hidden rounded-lg border bg-muted/40`}
+          imgClassName={`h-${h} w-${h} object-cover`} />
+      ))}
+    </div>
+  );
+}

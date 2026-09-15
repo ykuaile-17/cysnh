@@ -10,8 +10,12 @@ import { LockScreen } from '@/components/LockScreen';
 import Home from '@/pages/Home';
 import Games from '@/pages/Games';
 import GameDetail from '@/pages/GameDetail';
+import CardDetail from '@/pages/CardDetail';
+import StoryDetail from '@/pages/StoryDetail';
 import Stars from '@/pages/Stars';
 import StarDetail from '@/pages/StarDetail';
+import MaterialDetail from '@/pages/MaterialDetail';
+import PhotocardDetail from '@/pages/PhotocardDetail';
 import Novels from '@/pages/Novels';
 import NovelDetail from '@/pages/NovelDetail';
 import Merch from '@/pages/Merch';
@@ -21,6 +25,7 @@ import Reminders from '@/pages/Reminders';
 import Stats from '@/pages/Stats';
 import Profile from '@/pages/Profile';
 import Calendar from '@/pages/Calendar';
+import DataImport from '@/pages/DataImport';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
@@ -58,10 +63,14 @@ function Root() {
       <Routes>
         <Route element={<ShellLayout />}>
           <Route path="/" element={<Home />} />
-          <Route path="/games" element={<Games />} />
-          <Route path="/games/:id" element={<GameDetail />} />
-          <Route path="/stars" element={<Stars />} />
-          <Route path="/stars/:id" element={<StarDetail />} />
+        <Route path="/games" element={<Games />} />
+        <Route path="/games/:id" element={<GameDetail />} />
+        <Route path="/games/:id/cards/:cardId" element={<CardDetail />} />
+        <Route path="/games/:id/stories/:storyId" element={<StoryDetail />} />
+        <Route path="/stars" element={<Stars />} />
+        <Route path="/stars/:id" element={<StarDetail />} />
+        <Route path="/stars/:id/materials/:mid" element={<MaterialDetail />} />
+        <Route path="/stars/:id/photocards/:pid" element={<PhotocardDetail />} />
           <Route path="/novels" element={<Novels />} />
           <Route path="/novels/:id" element={<NovelDetail />} />
           <Route path="/merch" element={<Merch />} />
@@ -71,6 +80,7 @@ function Root() {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/stats" element={<Stats />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/import" element={<DataImport />} />
         </Route>
       </Routes>
     </BrowserRouter>

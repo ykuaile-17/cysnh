@@ -1,6 +1,6 @@
 {
   "name": "次元收纳盒",
-  "app_slug": "ciyuan-storage-box",
-  "version_description": "Add story-card link per-pool pity calendar reminder",
+  "app_slug": "ciyuan-storage",
+  "version_description": "Fix calendar pool entry and show all images",
   "preview_type": "mobile"
 }

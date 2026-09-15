@@ -137,6 +137,7 @@ export interface Card extends BaseEntity {
   storyId?: ID | null; // 联动剧情
   accountId?: ID | null; // 所属账号
   accountNote?: string; // 账号备注（如：该卡由某号拥有）
+  awaken?: number; // 觉醒/突破次数（如突破到第几阶）
 }
 
 // ============ 追星 ============
